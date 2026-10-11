@@ -380,8 +380,8 @@ public static class TankDuelData
 
     public static int SelectedArena
     {
-        get => Mathf.Clamp(PlayerPrefs.GetInt("TankDuel.Arena", 0), 0, 2);
-        set { PlayerPrefs.SetInt("TankDuel.Arena", Mathf.Clamp(value, 0, 2)); PlayerPrefs.Save(); }
+        get => Mathf.Clamp(PlayerPrefs.GetInt("TankDuel.Arena", 0), 0, DuelArenaCatalog.Scenes.Length - 1);
+        set { PlayerPrefs.SetInt("TankDuel.Arena", Mathf.Clamp(value, 0, DuelArenaCatalog.Scenes.Length - 1)); PlayerPrefs.Save(); }
     }
 
     public static int SelectRandomArena(int arenaCount)

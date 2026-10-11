@@ -2,6 +2,21 @@
 
 ## Son güncelleme
 
+- 1.5.0: Kanyon, Liman ve Kutup İstasyonu eklendi; eski üç arena korundu. Yeni haritalarda on özgün, tekrar kullanılabilir düşük poligonlu model bulunuyor.
+- Yeni modellerde eksik mesh, malzeme veya desteklenmeyen shader bulunmadı. Model başına 60–660 üçgen ve 2–5 malzeme grubu var; dekoratif parçalar birleştirildi.
+- Üç yeni haritanın 12 başlangıç alanı çarpışma açısından ve başlangıç/güçlendirme noktaları arasındaki 84 yol bağlantısı kontrol edildi. Kutup haritasında başlangıca yakın bir kayalık test sırasında taşındı.
+- Beş bot modeli × üç yeni harita ve her haritada iki oyunculu mod: toplam 18 çalışma kontrolü geçti. Botlar geçerli rotalarla hareket etti; oyuncular kamera kadrajında kaldı; güçlendirmeler zeminin üzerinde ve erişilebilir doğdu.
+- 627 geri sayım örneğinde tank hareketi kapalıydı. Güçlendirme toplandıktan sonra botun savaş rotasına dönmesi sırasında boş rota görülebileceği testte dikkate alındı.
+- Altı arena arasında 300 rastgele seçim denendi: tüm arenalar seçildi, aynı arena art arda gelmedi, yeni arena indeksleri ayarlarda korundu.
+- Kanyon, Liman ve Kutup İstasyonu görselleri oyun kamerasıyla incelendi; zemin yüzeylerinin üst üste gelmesi giderildi.
+- Seri atışın dar simgesi üçlü simgeyle genişletildi: 0,40 yerine 1,40 birim genişlik. Yerdeki güçlendirme ve tank üzerindeki gösterge güncellendi; toplama alanı ve etkisi değişmedi. Diğer güçlendirmelerle yan yana görüntüsü incelendi.
+- Raunt göstergesindeki yanıltıcı toplam kaldırıldı; artık dördüncü rauntta “4 / 3” gösterilmiyor.
+- 1920 × 1080 ana menüde altı harita adı görüntü üzerinden incelendi; etkin metinlerde taşma ve Unity konsolunda hata bulunmadı. Test için değiştirilen oyun tercihleri geri yüklendi.
+- Windows 64 bit 1.5.0 derlemesi başarılı: 0 hata, 180,06 MB. Unity'nin mevcut eski ayar biçimi/paket uyarıları sürüyor (32 uyarı).
+- Güncel Windows oyunu 12 saniyelik arka plan açılış kontrolünde çalışır kaldı; taranan çalışma istisnaları bulunmadı. Bu kontrol görsel test değildir; görsel kontroller Unity oyun görünümünde yapıldı.
+
+## 1.4.1 kontrolleri
+
 - Bot modeli artık maç başında bir kez rastgele seçiliyor; raunt içinde yeniden seçilmiyor. Kolayda iki, ortada üç, zorda dört model kullanılabiliyor; can sınırları 35/45/50.
 - Üç zorluk için toplam 300 tank seçimi denendi; beklenen modeller geldi ve art arda aynı tank seçilmedi.
 - Raunt beklemesi görünür bir geri sayımla gösteriliyor. Bot her yeniden etkinleşmede ilk rotasını beklemeden istiyor ve önce kısa bir hareket yapıyor.

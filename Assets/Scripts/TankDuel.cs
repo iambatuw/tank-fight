@@ -121,9 +121,7 @@ public partial class TankDuel : MonoBehaviour
         }
     };
 
-    private static readonly string[] ArenaScenes = { "Duel_Jungle", "Duel_Desert", "Duel_Moon" };
-    private static readonly string[] ArenaNamesTR = { "ORMAN", "ÇÖL", "AY ÜSSÜ" };
-    private static readonly string[] ArenaNamesEN = { "JUNGLE", "DESERT", "MOON" };
+    private static readonly string[] ArenaScenes = DuelArenaCatalog.Scenes;
     private static readonly int[] RoundLengths = { 60, 90, 120 };
 
     private static readonly Color DarkBg = new Color(0.04f, 0.07f, 0.10f, 0.98f);
@@ -226,7 +224,7 @@ public partial class TankDuel : MonoBehaviour
             string sceneName = SceneManager.GetActiveScene().name;
             for (int i = 0; i < ArenaScenes.Length; i++)
             {
-                if (sceneName.Contains(ArenaScenes[i]) || sceneName.EndsWith(ArenaScenes[i]))
+                if (sceneName == ArenaScenes[i])
                     return i;
             }
             return 0;
@@ -752,7 +750,7 @@ public partial class TankDuel : MonoBehaviour
         int leftWins = gameManager.m_SpawnPoints[0].m_Wins;
         int rightWins = gameManager.m_SpawnPoints[1].m_Wins;
         scoreText.text = $"{leftWins}  –  {rightWins}";
-        roundText.text = $"{TankDuelLocalization.Get("ROUND")} {gameManager.RoundNumber} / {gameManager.m_NumRoundsToWin}";
+        roundText.text = $"{TankDuelLocalization.Get("ROUND")} {gameManager.RoundNumber}";
 
         if (p1WinsText != null) p1WinsText.text = $"{leftWins} {TankDuelLocalization.Get("VICTORIES")}";
         if (p2WinsText != null) p2WinsText.text = $"{rightWins} {TankDuelLocalization.Get("VICTORIES")}";

@@ -1,6 +1,6 @@
 # Tank Düellosu
 
-Tank Düellosu, aynı bilgisayarda iki kişiyle veya bilgisayara karşı oynanan bir tank savaş oyunudur. Üç arena, beş tank, garaj, altın ve güçlendirmeler içerir.
+Tank Düellosu, aynı bilgisayarda iki kişiyle veya bilgisayara karşı oynanan bir tank savaş oyunudur. Altı arena, beş tank, garaj, altın ve güçlendirmeler içerir.
 
 ![Ana menü](UI-Preview/main-currency-fixed.png)
 
@@ -28,7 +28,21 @@ Garajdaki **Tank rengi** bölümünden turkuaz, turuncu, yeşil, kırmızı, mav
 
 ## Rastgele arenalar
 
-Hem iki kişilik düellolarda hem bilgisayara karşı maçlarda **Orman, Çöl ve Ay Üssü** arasından rastgele arena seçilir. Her yeni maçta ve **Yeniden oyna** seçiminde harita değişir; aynı arena art arda gelmez. Bir maçın rauntları aynı arenada oynanır.
+Hem iki kişilik düellolarda hem bilgisayara karşı maçlarda **Orman, Çöl, Ay Üssü, Kanyon, Liman ve Kutup İstasyonu** arasından rastgele arena seçilir. Her yeni maçta ve **Yeniden oyna** seçiminde harita değişir; aynı arena art arda gelmez. Bir maçın rauntları aynı arenada oynanır.
+
+### Yeni arenalar
+
+| Arena | Oynanış |
+| --- | --- |
+| Kanyon | Katmanlı kayalıklar, taş kemerler ve açık yan geçitler |
+| Liman | Renkli yük konteynerleri, kasalar ve vinçlerle çevrili rıhtım |
+| Kutup İstasyonu | Buz kayalıkları, modüler üs binaları ve radar kuleleri |
+
+![Kanyon](UI-Preview/arena-canyon.png)
+![Liman](UI-Preview/arena-harbor.png)
+![Kutup İstasyonu](UI-Preview/arena-arctic.png)
+
+Yeni haritaların on özgün 3D modeli `Assets/ArenaArt/Prefabs` klasöründedir. Modeller düşük poligonlu ve düz renkli tasarlanmıştır. Küçük süs parçaları malzemeye göre birleştirilmiştir; oyun sırasında yeniden model üretilmez. Her haritada dört güçlendirme noktası ve iki taraf için açık başlangıç alanları bulunur.
 
 Oyun içindeki yarı şeffaf göstergeler oyuncu adını, tank modelini, canı ve skoru ayrı alanlarda gösterir. Renk şeritleri garajda seçtiğiniz tank rengiyle eşleşir.
 
@@ -47,6 +61,8 @@ Bot tankı her maçta zorluğa uygun havuzdan rastgele seçilir; art arda aynı 
 Raunt başında iki taraf da ekrandaki geri sayımı bekler. Geri sayım bittiğinde kontroller birlikte açılır; bot rotasını hemen hesaplayıp kısa bir ilk hareketten sonra atışa hazırlanır.
 
 Botlar da haritadaki güçlendirmeleri toplar: hız, kalkan, seri atış, iyileştirme, geçici dokunulmazlık ve güçlü mermi. Yakındaki ulaşılabilir güçlendirmelere yönelir; canları azaldığında iyileştirmeye öncelik verir. İyileştirme tabloda belirtilen azami canı aşmaz. Oyuncu ve bot aynı anda tek güçlendirme kullanabilir.
+
+Seri atış, yerde ve tankın üzerinde daha geniş üçlü şimşek simgesiyle gösterilir.
 
 ## Kamera ve vuruşlar
 
@@ -83,16 +99,19 @@ Releases bölümündeki **TankDuellosu-Unity-Projesi.zip**, düzenlenebilir Unit
 3. Unity **6000.6.4f1** ile açın; ilk açılışta paketlerin yüklenmesini bekleyin.
 4. `Assets/Scenes/Duel_Jungle.unity` sahnesini açıp **Play** düğmesine basın.
 
-Diğer sahneler `Duel_Desert` ve `Duel_Moon` arenalarıdır. Windows oyunu oluşturmak için Unity kurulumunda Windows Build Support bulunmalıdır.
+Diğer sahneler `Duel_Desert`, `Duel_Moon`, `Duel_Canyon`, `Duel_Harbor` ve `Duel_Arctic` arenalarıdır. Windows oyunu oluşturmak için Unity kurulumunda Windows Build Support bulunmalıdır.
 
 ## Dosyalar
 
 | Klasör | İçerik |
 | --- | --- |
 | `Build` | Windows oyunu |
-| `Assets/Scenes` | Üç oynanabilir arena |
+| `Assets/Scenes` | Altı oynanabilir arena |
+| `Assets/ArenaArt` | Yeni arenaların özgün modelleri, malzemeleri ve gezinme ağları |
 | `Assets/Scripts` | Menü, kamera, rakip göstergesi ve oyun yönetimi |
 | `Assets/_Tanks` | Tanklar, haritalar, sesler ve temel oyun bileşenleri |
 | `Assets/Editor` | Sahne hazırlama ve derleme araçları |
 | `ProjectSettings`, `Packages` | Unity proje ve paket ayarları |
 | `UI-Preview` | Güncel ekran görüntüleri |
+
+Yeni arenaları yeniden oluşturmak için Unity'de **Tank Duel → Build New Arenas** seçilebilir. Bu işlem üç yeni sahneyi kayıtlı düzenlerinden yeniden üretir; elle yaptığınız sahne değişikliklerinin üzerine yazar.

@@ -161,12 +161,7 @@ public static class TankDuelSetup
         Directory.CreateDirectory(buildFolder);
         string exePath = Path.Combine(buildFolder, "TankDuel.exe");
 
-        var scenes = new[]
-        {
-            TargetFolder + "Duel_Jungle.unity",
-            TargetFolder + "Duel_Desert.unity",
-            TargetFolder + "Duel_Moon.unity"
-        };
+        var scenes = Array.ConvertAll(DuelArenaCatalog.Scenes, DuelArenaCatalog.ScenePath);
 
         BuildPlayerOptions options = new BuildPlayerOptions
         {

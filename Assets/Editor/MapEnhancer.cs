@@ -96,9 +96,10 @@ public static class MapEnhancer
 
             // Update Build Settings
             var scenes = new System.Collections.Generic.List<EditorBuildSettingsScene>();
-            foreach (var arena in Arenas)
+            foreach (var arena in DuelArenaCatalog.Scenes)
             {
-                scenes.Add(new EditorBuildSettingsScene(TargetFolder + "Duel_" + arena + ".unity", true));
+                string path = DuelArenaCatalog.ScenePath(arena);
+                if (File.Exists(path)) scenes.Add(new EditorBuildSettingsScene(path, true));
             }
             EditorBuildSettings.scenes = scenes.ToArray();
             AssetDatabase.SaveAssets();

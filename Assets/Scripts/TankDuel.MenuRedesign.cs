@@ -349,10 +349,11 @@ public partial class TankDuel
 
         UiLabel(card.transform, UiCopy("RASTGELE HARİTA", "RANDOM ARENA"), 19, UiMuted,
             new Vector2(-120, -105), new Vector2(560, 34), bold: true);
-        UiLabel(card.transform, UiCopy("Orman  •  Çöl  •  Ay Üssü", "Jungle  •  Desert  •  Moon Base"),
-            27, UiText, new Vector2(0, -156), new Vector2(800, 40), TextAlignmentOptions.Center, true);
+        UiLabel(card.transform, UiCopy("Orman  •  Çöl  •  Ay Üssü\nKanyon  •  Liman  •  Kutup İstasyonu",
+            "Jungle  •  Desert  •  Moon Base\nCanyon  •  Harbor  •  Arctic Station"),
+            23, UiText, new Vector2(0, -162), new Vector2(800, 72), TextAlignmentOptions.Center, true, true);
         UiLabel(card.transform, UiCopy("Her yeni maçta farklı bir arena", "A different arena for every new match"),
-            20, UiMuted, new Vector2(0, -198), new Vector2(800, 30), TextAlignmentOptions.Center);
+            18, UiMuted, new Vector2(0, -216), new Vector2(800, 26), TextAlignmentOptions.Center);
         UiRuleLine(card.transform, new Vector2(0, -234), 800);
         UiButton(card.transform, "Start match", TankDuelLocalization.Get("START_MATCH"),
             new Vector2(0, -334), new Vector2(800, 82), UiAccent, UiBackdrop, OnStartMatchClicked, 30);
