@@ -1,7 +1,13 @@
-# Kontrol sonuçları — 10 Ekim 2026
+# Kontrol sonuçları — 11 Ekim 2026
 
 ## Son güncelleme
 
+- Bot modeli artık maç başında bir kez rastgele seçiliyor; raunt içinde yeniden seçilmiyor. Kolayda iki, ortada üç, zorda dört model kullanılabiliyor; can sınırları 35/45/50.
+- Üç zorluk için toplam 300 tank seçimi denendi; beklenen modeller geldi ve art arda aynı tank seçilmedi.
+- Raunt beklemesi görünür bir geri sayımla gösteriliyor. Bot her yeniden etkinleşmede ilk rotasını beklemeden istiyor ve önce kısa bir hareket yapıyor.
+- Devre dışı AI bileşeninin başlatma sırasında referanslarını almaması düzeltildi; hedef rotaları gezinme yüzeyine oturtulup geçerli tam yollarla sınırlandı.
+- Beş tank modeli × üç arena için 15 gerçek başlangıç kontrolü geçti: geri sayımda iki tarafın hareketi kapalı kaldı, ardından bot geçerli rota bulup hareket etti. Can sınırları her birleşimde doğrulandı.
+- Yenilenen geri sayım 1080p görünümde incelendi; etkin metinlerde taşma veya konsol hatası bulunmadı. Raunt değişiminde seçili bot modeli korundu.
 - 1.4.1: Harita yüklemeleri tek seferlik, hedef sahneye bağlı bir geçiş üzerinden yapılıyor. Otomatik başlatma isteği artık kalıcı oyuncu ayarlarında tutulmuyor.
 - İki modda toplam altı yeniden oynama geçişi kontrol edildi; Orman, Çöl ve Ay Üssü açıldı.
 - 120 tekrarlı yeniden oynama çağrısı ve maç sırasında 480 eski menü/başlatma çağrısı ek sahne yüklemedi, tankları yeniden oluşturmadı.

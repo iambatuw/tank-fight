@@ -53,7 +53,6 @@ namespace Tanks.Complete
         private GameState m_CurrentState;
         
         private int m_RoundNumber;                  // Which round the game is currently on.
-        private WaitForSeconds m_StartWait;         // Used to have a delay whilst the round starts.
         private WaitForSeconds m_EndWait;           // Used to have a delay whilst the round or game ends.
         private TankManager m_RoundWinner;          // Reference to the winner of the current round.  Used to make an announcement of who won.
         private TankManager m_GameWinner;           // Reference to the winner of the game.  Used to make an announcement of who won.
@@ -155,7 +154,6 @@ namespace Tanks.Complete
         void GameStart()
         {
             // Create the delays so they only have to be made once.
-            m_StartWait = new WaitForSeconds (m_StartDelay);
             m_EndWait = new WaitForSeconds (m_EndDelay);
 
             SpawnAllTanks();
@@ -358,10 +356,20 @@ namespace Tanks.Complete
             // Increment the round number and display text showing the players what round it is.
             RemainingTime = Mathf.Max(1f, m_RoundDuration);
             m_RoundNumber++;
-            ShowAnnouncement((TankDuelLocalization.IsTurkish ? "RAUND " : "ROUND ") + m_RoundNumber);
-
-            // Wait for the specified length of time until yielding control back to the game loop.
-            yield return m_StartWait;
+            float countdown = Mathf.Max(0f, m_StartDelay);
+            int shown = -1;
+            while (countdown > 0f)
+            {
+                int seconds = Mathf.CeilToInt(countdown);
+                if (seconds != shown)
+                {
+                    shown = seconds;
+                    ShowAnnouncement((TankDuelLocalization.IsTurkish ? "RAUND " : "ROUND ") +
+                        m_RoundNumber + "\n" + seconds);
+                }
+                yield return null;
+                countdown -= Time.deltaTime;
+            }
         }
 
 

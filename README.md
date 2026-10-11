@@ -38,11 +38,13 @@ Harita yalnızca ana menüde **Savaşa başla** veya maç sonunda **Yeniden oyna
 
 | Zorluk | Rakip tank | Can |
 | --- | --- | --- |
-| Kolay | Standart | 35 |
-| Orta | Orta | 45 |
-| Zor | Ağır | 50 |
+| Kolay | Standart veya Orta | 35 |
+| Orta | Standart, Orta veya ATV | 45 |
+| Zor | Orta, Ağır, ATV veya Köpekbalığı | 50 |
 
-Bot tankı zorluğa göre seçilir. Bot için garajdan alışveriş yapılmaz. Zorluk arttıkça hareket ve nişan alma davranışı güçlenir.
+Bot tankı her maçta zorluğa uygun havuzdan rastgele seçilir; art arda aynı model gelmez. Maçın rauntları boyunca model değişmez. Bot için garajdan alışveriş yapılmaz. Zorluk arttıkça hareket ve nişan alma davranışı güçlenir.
+
+Raunt başında iki taraf da ekrandaki geri sayımı bekler. Geri sayım bittiğinde kontroller birlikte açılır; bot rotasını hemen hesaplayıp kısa bir ilk hareketten sonra atışa hazırlanır.
 
 Botlar da haritadaki güçlendirmeleri toplar: hız, kalkan, seri atış, iyileştirme, geçici dokunulmazlık ve güçlü mermi. Yakındaki ulaşılabilir güçlendirmelere yönelir; canları azaldığında iyileştirmeye öncelik verir. İyileştirme tabloda belirtilen azami canı aşmaz. Oyuncu ve bot aynı anda tek güçlendirme kullanabilir.
 

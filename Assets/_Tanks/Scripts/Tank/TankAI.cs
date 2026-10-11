@@ -26,6 +26,7 @@ namespace Tanks.Complete
         private TankHealth m_Health;
         private PowerUp m_PowerUpTarget;
         private float m_PowerUpSearchTimer;
+        private float m_OpeningMoveRemaining;
         private float m_CollectTimer;
         private const float PowerUpSearchInterval = 0.75f;
         private const float PowerUpSearchRadius = 12f;
@@ -59,19 +60,17 @@ namespace Tanks.Complete
 
         private void Awake()
         {
-            //Awake is still called on disabled component. So that the user can test disabling AI on a single tank
-            //we ensure that the component wasn't disabled before initializing everything
-            if(!isActiveAndEnabled)
-                return;
-            
             m_Movement = GetComponent<TankMovement>();
             m_Shooting = GetComponent<TankShooting>();
             m_PowerUpDetector = GetComponent<PowerUpDetector>();
             m_Health = GetComponent<TankHealth>();
 
             // ensure that both movement and shooting script are set in "computer controlled" mode
-            if (m_Movement != null) m_Movement.m_IsComputerControlled = true;
-            if (m_Shooting != null) m_Shooting.m_IsComputerControlled = true;
+            if (isActiveAndEnabled)
+            {
+                if (m_Movement != null) m_Movement.m_IsComputerControlled = true;
+                if (m_Shooting != null) m_Shooting.m_IsComputerControlled = true;
+            }
 
             // to avoid all computer controlled tank pathfinding together (and taxing the CPU), AI tank have a random
             // pathfinding time that will stagger them across multiple frame
@@ -134,6 +133,13 @@ namespace Tanks.Complete
             enabled = false;
         }
 
+        private void OnEnable()
+        {
+            // Reacquire a route immediately after every countdown, including respawns.
+            m_PathfindTimer = m_PathfindTime;
+            m_OpeningMoveRemaining = 0.8f;
+        }
+
         private void OnDisable()
         {
             m_PowerUpTarget = null;
@@ -152,6 +158,7 @@ namespace Tanks.Complete
         void Update()
         {
             if (Time.timeScale <= 0f) return;
+            m_OpeningMoveRemaining = Mathf.Max(0f, m_OpeningMoveRemaining - Time.deltaTime);
             // If there is a cooldown active, we decrement it by the time elapsed since last frame
             if(m_ShotCooldown > 0)
                 m_ShotCooldown -= Time.deltaTime /
@@ -281,7 +288,12 @@ namespace Tanks.Complete
                     paths[i] = new NavMeshPath();
 
                     // this return true if a path was found
-                    if (NavMesh.CalculatePath(transform.position, tank.transform.position, ~0, paths[i]))
+                    NavMeshHit origin;
+                    NavMeshHit destination;
+                    if (NavMesh.SamplePosition(transform.position, out origin, 3f, NavMesh.AllAreas) &&
+                        NavMesh.SamplePosition(tank.transform.position, out destination, 3f, NavMesh.AllAreas) &&
+                        NavMesh.CalculatePath(origin.position, destination.position, NavMesh.AllAreas, paths[i]) &&
+                        paths[i].status == NavMeshPathStatus.PathComplete && paths[i].corners.Length >= 2)
                     {
                         // Compute how long the path is...
                         float length = GetPathLength(paths[i]);
@@ -404,7 +416,7 @@ namespace Tanks.Complete
                 {
                     // We aren't charging yet, so check if the target is closer than our max shooting distance, which mean we can start charging the shot
                     // (a "smarter" solution would be to compute how early we can charge so we reach max distance already max charged)
-                    if (targetDistance < m_MaxShootingDistance)
+                    if (targetDistance < m_MaxShootingDistance && m_OpeningMoveRemaining <= 0f)
                     {
                         // This use the navmesh to check if there are any obstacle between us and the target. If this return false
                         // this mean there is no unobstructed path, so there *is* an obstacle, so we shouldn't start shooting yet

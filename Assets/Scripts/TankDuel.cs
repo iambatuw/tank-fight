@@ -216,6 +216,7 @@ public partial class TankDuel : MonoBehaviour
     private bool started;
     private bool paused;
     private bool isStartingMatch;
+    private int botTankIndex = -1;
     private float hudUpdateTimer;
 
     private int CurrentSceneIndex
@@ -602,11 +603,11 @@ public partial class TankDuel : MonoBehaviour
         }
     }
 
-    private static int GetOpponentTankIndex()
+    private int GetOpponentTankIndex()
     {
         // A computer opponent uses a tank suited to its difficulty, independently of purchases.
         return TankDuelData.AIModeEnabled
-            ? Mathf.Clamp(TankDuelData.AIDifficulty, 0, 2)
+            ? Mathf.Max(0, botTankIndex)
             : Mathf.Clamp(TankDuelData.Player2TankIndex, 0, Archetypes.Length - 1);
     }
 
@@ -1396,6 +1397,8 @@ public partial class TankDuel : MonoBehaviour
     private void StartMatch()
     {
         if (started) return;
+        if (TankDuelData.AIModeEnabled && botTankIndex < 0)
+            botTankIndex = TankDuelData.SelectBotTank(TankDuelData.AIDifficulty);
         Time.timeScale = 1f;
 
         CleanNullOverlayCameras();

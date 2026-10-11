@@ -358,6 +358,26 @@ public static class TankDuelData
         set { PlayerPrefs.SetInt("TankDuel.AIDifficulty", Mathf.Clamp(value, 0, 2)); PlayerPrefs.Save(); }
     }
 
+    private static readonly int[][] BotTankPools =
+    {
+        new[] { 0, 1 },
+        new[] { 0, 1, 3 },
+        new[] { 1, 2, 3, 4 }
+    };
+
+    public static int SelectBotTank(int difficulty)
+    {
+        var pool = BotTankPools[Mathf.Clamp(difficulty, 0, 2)];
+        int previous = PlayerPrefs.GetInt("TankDuel.LastBotTank", -1);
+        int excluded = Array.IndexOf(pool, previous);
+        int choice = UnityEngine.Random.Range(0, pool.Length - (excluded >= 0 ? 1 : 0));
+        if (excluded >= 0 && choice >= excluded) choice++;
+        int tank = pool[choice];
+        PlayerPrefs.SetInt("TankDuel.LastBotTank", tank);
+        PlayerPrefs.Save();
+        return tank;
+    }
+
     public static int SelectedArena
     {
         get => Mathf.Clamp(PlayerPrefs.GetInt("TankDuel.Arena", 0), 0, 2);
