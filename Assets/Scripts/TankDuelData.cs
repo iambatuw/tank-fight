@@ -18,6 +18,10 @@ public static class TankDuelLocalization
     public static void EnsureTurkishSupport(TMP_FontAsset font)
     {
         if (font == null) return;
+        bool hasTurkishGlyphs = true;
+        foreach (char c in "ÇĞİÖŞÜçğıöşü")
+            if (!font.HasCharacter(c)) { hasTurkishGlyphs = false; break; }
+        if (hasTurkishGlyphs) return;
         try
         {
             if (font.fallbackFontAssetTable == null)

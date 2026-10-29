@@ -1,6 +1,14 @@
-# Kontrol sonuçları — 11 Ekim 2026
+# Kontrol sonuçları — 29 Ekim 2026
 
-## Son güncelleme
+## 1.6.0 kontrolleri
+
+- Ana menü tek renk arka plan, solda üç açıklamalı buton ve sağda kısa oyun tanıtımıyla yeniden kuruldu. Maç ayarları ayrı ekranda açılıyor.
+- Türkçe harfleri içeren Ubuntu yazı varlığı Unity projesine eklendi. Başlık, buton, garaj ve ayar yazıları 1920 × 1080 oyun görüntüsünde incelendi; kesilmiş metin görülmedi.
+- Garaj önizleme kamerası ve araç açısı düzeltildi; Standart ve Köpekbalığı araçlarının tüm gövdeleri görüntüde kontrol edildi.
+- Oyna, bot/iki oyuncu seçimi ve ayar sekmesi geçişleri çalıştı. İki oyuncu seçimi bot zorluğunu gizledi, bot seçimi yeniden gösterdi.
+- Windows 64 bit derlemesi başarılı: 0 hata, 180,35 MB. Unity'nin mevcut proje ve paket uyarıları sürüyor (32 uyarı).
+
+## 1.5.0 kontrolleri
 
 - 1.5.0: Kanyon, Liman ve Kutup İstasyonu eklendi; eski üç arena korundu. Yeni haritalarda on özgün, tekrar kullanılabilir düşük poligonlu model bulunuyor.
 - Yeni modellerde eksik mesh, malzeme veya desteklenmeyen shader bulunmadı. Model başına 60–660 üçgen ve 2–5 malzeme grubu var; dekoratif parçalar birleştirildi.
@@ -65,7 +73,7 @@
 
 ## Menü ve altın
 
-- Altın göstergesi ana menüde maç kurulum kartının, garajda gezinme çubuğunun içine yerleştirildi.
+- Altın göstergesi garaj gezinme çubuğunda yer alır; sade ana menüde gösterilmez.
 - 1920 × 1080 oyun görünümünde ana menü ve garaj görüntü üzerinden kontrol edildi.
 - 2.147.483.647 altın metni kesilmeden sığdı; bakiye değiştirilmeksizin metin alanı sınandı.
 

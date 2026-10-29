@@ -137,6 +137,7 @@ public partial class TankDuel : MonoBehaviour
     private Canvas canvas;
     private GameObject topBar;
     private GameObject menuPanel;
+    private GameObject matchSetupPanel;
     private GameObject garagePanel;
     private GameObject settingsPanel;
     private GameObject hud;
@@ -176,6 +177,7 @@ public partial class TankDuel : MonoBehaviour
     private TextMeshProUGUI modeHintLabel;
 
     private GameObject difficultySection;
+    private GameObject twoPlayerInstructions;
     private Button[] diffButtons = new Button[3];
     private TextMeshProUGUI[] diffButtonLabels = new TextMeshProUGUI[3];
     private TextMeshProUGUI diffHintLabel;
@@ -381,14 +383,12 @@ public partial class TankDuel : MonoBehaviour
         if (bodyFont == null)
             bodyFont = titleFont;
 
-        var interfaceFont = Resources.Load<TMP_FontAsset>("UI/Inter SDF");
+        var interfaceFont = Resources.Load<TMP_FontAsset>("UI/UbuntuTR SDF");
         if (interfaceFont != null) titleFont = bodyFont = interfaceFont;
 
         TankDuelLocalization.EnsureTurkishSupport(titleFont);
         if (bodyFont != titleFont)
             TankDuelLocalization.EnsureTurkishSupport(bodyFont);
-        if (TMP_Settings.defaultFontAsset != null)
-            TankDuelLocalization.EnsureTurkishSupport(TMP_Settings.defaultFontAsset);
 
 #if UNITY_EDITOR
         if (availableTanks == null || availableTanks.Length < 5)
@@ -852,6 +852,7 @@ public partial class TankDuel : MonoBehaviour
 
         CreateTopBar();
         CreateMainMenuPanel();
+        BuildMatchSetupPanel();
         CreateGaragePanel();
         CreateSettingsPanel();
         CreateHudPanel();
@@ -862,7 +863,7 @@ public partial class TankDuel : MonoBehaviour
 
     private void CreateTopBar() => BuildTopBar();
 
-    private void CreateMainMenuPanel() => BuildMainMenuPanel();
+    private void CreateMainMenuPanel() => BuildLandingMenu();
 
     private void UpdateModeCards() => RefreshModeChoices();
 
@@ -871,7 +872,7 @@ public partial class TankDuel : MonoBehaviour
     private void OnStartMatchClicked()
     {
         if (started || isStartingMatch || DuelSceneTransition.IsLoading ||
-            menuPanel == null || !menuPanel.activeInHierarchy) return;
+            matchSetupPanel == null || !matchSetupPanel.activeInHierarchy) return;
         isStartingMatch = true;
 
         int chosen = TankDuelData.SelectRandomArena(ArenaScenes.Length);
@@ -892,6 +893,7 @@ public partial class TankDuel : MonoBehaviour
     {
         SetMenuInput(false);
         if (menuPanel != null) menuPanel.SetActive(false);
+        if (matchSetupPanel != null) matchSetupPanel.SetActive(false);
         if (topBar != null) topBar.SetActive(false);
         if (garagePanel != null) garagePanel.SetActive(false);
         if (settingsPanel != null) settingsPanel.SetActive(false);
@@ -910,9 +912,7 @@ public partial class TankDuel : MonoBehaviour
         UpdateGarageView();
     }
 
-    private void CreateGaragePanel() => BuildGaragePanel();
-
-    private void CreateStatBar(Transform parent, string title, float yPos, out RectTransform fillRect, out TextMeshProUGUI valText, Color barColor) => BuildStatBar(parent, title, yPos, out fillRect, out valText, barColor);
+    private void CreateGaragePanel() => BuildModernGarage();
 
     private void CreateFrameBorder(Transform parent, Vector2 size, Color borderColor)
     {
@@ -994,19 +994,19 @@ public partial class TankDuel : MonoBehaviour
 
         // 4 Visual Stat Bars
         float speedRatio = Mathf.Clamp01(arch.speed / 18f);
-        if (speedStatFill != null) speedStatFill.sizeDelta = new Vector2(620f * speedRatio, 14f);
+        if (speedStatFill != null) ResizeStatFill(speedStatFill, speedRatio);
         if (speedStatVal != null) speedStatVal.text = $"{arch.speed:0} KM/S";
 
         float armorRatio = Mathf.Clamp01(arch.health / 80f);
-        if (armorStatFill != null) armorStatFill.sizeDelta = new Vector2(620f * armorRatio, 14f);
+        if (armorStatFill != null) ResizeStatFill(armorStatFill, armorRatio);
         if (armorStatVal != null) armorStatVal.text = $"{arch.health:0} {TankDuelLocalization.Get("HEALTH_UNIT")}";
 
         float damageRatio = Mathf.Clamp01(arch.damage / 80f);
-        if (damageStatFill != null) damageStatFill.sizeDelta = new Vector2(620f * damageRatio, 14f);
+        if (damageStatFill != null) ResizeStatFill(damageStatFill, damageRatio);
         if (damageStatVal != null) damageStatVal.text = $"{arch.damage:0} {TankDuelLocalization.Get("STAT_DAMAGE")}";
 
         float firerateRatio = Mathf.Clamp01((1.6f - arch.cooldown) / 1.0f);
-        if (firerateStatFill != null) firerateStatFill.sizeDelta = new Vector2(620f * firerateRatio, 14f);
+        if (firerateStatFill != null) ResizeStatFill(firerateStatFill, firerateRatio);
         if (firerateStatVal != null) firerateStatVal.text = $"{arch.cooldown:0.0}s {(TankDuelLocalization.IsTurkish ? "BEKLEME" : "COOLDOWN")}";
 
         // Action button state
@@ -1018,20 +1018,20 @@ public partial class TankDuel : MonoBehaviour
         {
             dossierActionButton.GetComponent<Image>().color = UiSage;
             dossierActionText.text = TankDuelLocalization.Get("SELECTED");
-            dossierActionText.color = UiBackdrop;
+            dossierActionText.color = UiInk;
         }
         else if (isUnlocked)
         {
             dossierActionButton.GetComponent<Image>().color = UiAccent;
             dossierActionText.text = TankDuelLocalization.Get("SELECT");
-            dossierActionText.color = UiBackdrop;
+            dossierActionText.color = UiInk;
         }
         else
         {
             bool canAfford = TankDuelData.Coins >= arch.price;
             dossierActionButton.GetComponent<Image>().color = canAfford ? UiAccent : UiQuiet;
             dossierActionText.text = $"{TankDuelLocalization.Get("BUY")}  •  {arch.price} {TankDuelLocalization.Get("COINS")}";
-            dossierActionText.color = canAfford ? UiBackdrop : UiMuted;
+            dossierActionText.color = canAfford ? UiInk : UiText;
         }
 
         // Bottom Dock highlights
@@ -1092,7 +1092,7 @@ public partial class TankDuel : MonoBehaviour
         if (cam != null)
         {
             previewTankInstance.transform.position = targetWorldPos;
-            previewTankInstance.transform.rotation = Quaternion.Euler(0f, 135f, 0f);
+            previewTankInstance.transform.rotation = Quaternion.Euler(0f, 95f, 0f);
             previewTankInstance.transform.localScale = Vector3.one * 2.1f;
         }
 
@@ -1303,7 +1303,7 @@ public partial class TankDuel : MonoBehaviour
         }
     }
 
-    private void CreateSettingsPanel() => BuildSettingsPanel();
+    private void CreateSettingsPanel() => BuildModernSettings();
 
     private void RefreshSettingsPanel()
     {
@@ -1331,19 +1331,20 @@ public partial class TankDuel : MonoBehaviour
     {
         SetMenuInput(true);
         if (menuPanel != null) menuPanel.SetActive(panel == menuPanel);
+        if (matchSetupPanel != null) matchSetupPanel.SetActive(panel == matchSetupPanel);
         if (garagePanel != null) garagePanel.SetActive(panel == garagePanel);
         if (settingsPanel != null) settingsPanel.SetActive(panel == settingsPanel);
         if (hud != null) hud.SetActive(false);
         if (topBar != null)
         {
-            bool showCurrency = panel == menuPanel || panel == garagePanel;
+            bool showCurrency = panel == garagePanel;
             if (showCurrency)
             {
-                var host = panel == menuPanel ? menuPanel.transform.Find("Match setup") :
+                var host = panel == menuPanel ? menuPanel.transform :
                     garagePanel.transform.Find("Garage navigation");
                 topBar.transform.SetParent(host, false);
                 topBar.GetComponent<RectTransform>().anchoredPosition =
-                    panel == menuPanel ? new Vector2(282, 362) : new Vector2(744, 0);
+                    panel == menuPanel ? new Vector2(780, 465) : new Vector2(755, 0);
                 coinsText.text = GetCoinsLabel();
             }
             topBar.SetActive(showCurrency);

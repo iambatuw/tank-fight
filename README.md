@@ -1,8 +1,10 @@
 # Tank Düellosu
 
-Tank Düellosu, aynı bilgisayarda iki kişiyle veya bilgisayara karşı oynanan bir tank savaş oyunudur. Altı arena, beş tank, garaj, altın ve güçlendirmeler içerir.
+Tank Düellosu, aynı bilgisayarda iki kişiyle veya bilgisayara karşı oynanan bir tank savaş oyunudur. Ana menüden **Oyna** ile maç kurulur, **Garaj** ile tank ve renk seçilir, **Ayarlar** ile oyun seçenekleri değiştirilir. Altı arena, beş tank, altın ve güçlendirmeler içerir.
 
 ![Ana menü](UI-Preview/main-currency-fixed.png)
+
+![Maç ayarları](UI-Preview/setup-1080p.png)
 
 ## İndir ve oyna
 
@@ -46,7 +48,7 @@ Yeni haritaların on özgün 3D modeli `Assets/ArenaArt/Prefabs` klasöründedir
 
 Oyun içindeki yarı şeffaf göstergeler oyuncu adını, tank modelini, canı ve skoru ayrı alanlarda gösterir. Renk şeritleri garajda seçtiğiniz tank rengiyle eşleşir.
 
-Harita yalnızca ana menüde **Savaşa başla** veya maç sonunda **Yeniden oyna** seçildiğinde belirlenir. Hızlı tekrar tıklamalar ek yükleme başlatmaz; oyun sırasında ateş ve yön tuşları menü komutlarını çalıştırmaz.
+Harita yalnızca **Oyna → Savaşa başla** veya maç sonunda **Yeniden oyna** seçildiğinde belirlenir. Hızlı tekrar tıklamalar ek yükleme başlatmaz; oyun sırasında ateş ve yön tuşları menü komutlarını çalıştırmaz.
 
 ## Bilgisayara karşı
 
