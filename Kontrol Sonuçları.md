@@ -1,5 +1,13 @@
 # Kontrol sonuçları — 13 Kasım 2026
 
+## 1.8.0 kontrolleri
+
+- Bilgisayar rakibi baştan yazıldı: tepki gecikmeli algılama, gerçek görüş hattı kontrolü, rakibin etrafında dönerek atış noktası seçme, hareketli hedefin önüne atış, mesafeye göre doldurma, gelen mermiden ve doldurulan atıştan kaçma, can azalınca ya da yeniden doldururken siper alma, sıkışınca geri çıkma.
+- Windows derlemesi `-botduel` (ve isteğe bağlı `-botdifficulty 0-2`) ile bilgisayara karşı bilgisayar oynatıldı. Kolay seviyede 120 saniyede botlar ateş etti, isabet aldı, kaçtı, siper aldı ve raundlar tamamlandı; Zor seviyede 100 saniyede 6 raunt, 20 atış ve 7 kaçınma görüldü. Player.log'da hata yok.
+- İlk testte botların harita dışına düşen uzak bir atış mesafesi seçip görüş hattı yokken beklediği görüldü; tercih edilen mesafe arenaya göre sınırlandı ve görüş yoksa bot rakibe doğru ilerliyor.
+- Haritalar artık karıştırılmış sırayla geliyor: altı arenanın hepsi oynanmadan tekrar yok, yeni tur az önce oynanan arenayla başlamıyor.
+- Windows 64 bit derlemesi başarılı: 0 hata, 185,7 MB.
+
 ## 1.7.2 kontrolleri
 
 - Kanyon'daki kayalar, mesalar ve kaya sütunları her yönden kapalı, köşeli 3D kaya modelleriyle yeniden yapıldı (orijinal haritaların tarzında). Kanyon duvarlarının yüzü iri kaya bloklarından oluşuyor; arkadaki kesintisiz katmanlar korunuyor.

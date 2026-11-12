@@ -30,7 +30,7 @@ Garajdaki **Tank rengi** bölümünden turkuaz, turuncu, yeşil, kırmızı, mav
 
 ## Rastgele arenalar
 
-Hem iki kişilik düellolarda hem bilgisayara karşı maçlarda **Orman, Çöl, Ay Üssü, Kanyon, Liman ve Kutup İstasyonu** arasından rastgele arena seçilir. Her yeni maçta ve **Yeniden oyna** seçiminde harita değişir; aynı arena art arda gelmez. Bir maçın rauntları aynı arenada oynanır.
+Hem iki kişilik düellolarda hem bilgisayara karşı maçlarda **Orman, Çöl, Ay Üssü, Kanyon, Liman ve Kutup İstasyonu** arasından rastgele arena seçilir. Haritalar karıştırılmış bir sırayla gelir: altı arenanın hepsi birer kez oynanmadan hiçbiri tekrar gelmez, yeni tur da az önce oynanan arenayla başlamaz. Sıra oyun kapatılıp açıldığında da kaldığı yerden devam eder. Bir maçın rauntları aynı arenada oynanır.
 
 ### Yeni arenalar
 
@@ -58,9 +58,24 @@ Harita yalnızca **Oyna → Savaşa başla** veya maç sonunda **Yeniden oyna** 
 | Orta | Standart, Orta veya ATV | 45 |
 | Zor | Orta, Ağır, ATV veya Köpekbalığı | 50 |
 
-Bot tankı her maçta zorluğa uygun havuzdan rastgele seçilir; art arda aynı model gelmez. Maçın rauntları boyunca model değişmez. Bot için garajdan alışveriş yapılmaz. Zorluk arttıkça hareket ve nişan alma davranışı güçlenir.
+Bot tankı her maçta zorluğa uygun havuzdan rastgele seçilir; art arda aynı model gelmez. Maçın rauntları boyunca model değişmez. Bot için garajdan alışveriş yapılmaz.
 
-Raunt başında iki taraf da ekrandaki geri sayımı bekler. Geri sayım bittiğinde kontroller birlikte açılır; bot rotasını hemen hesaplayıp kısa bir ilk hareketten sonra atışa hazırlanır.
+Bot, sabit bir taret gibi değil bir oyuncu gibi oynar:
+
+- **Görme:** Rakibi kısa bir tepki gecikmesiyle görür; duvarların arkasına ateş etmez, ancak gerçekten açık bir atış hattı varsa nişan alır.
+- **Pozisyon:** Sevdiği mesafede bir atış noktası seçer ve rakibin etrafında döner; yerinde durmaz, kısa mesafede tankı çevirmek yerine geri vites yapar.
+- **Nişan:** Eli hafifçe titrer, hareket eden rakibin önüne atış yapar ve atışı yalnızca mesafe için gereken kadar doldurur.
+- **Kaçınma:** Rakip ona nişan alıp atışı doldururken ya da mermi üstüne gelirken ileri veya geri ani bir hamleyle kaçar.
+- **Siper:** Canı azalıp alışverişi kaybettiğinde ya da yeniden doldururken bir engelin arkasına çekilir, silahı hazır olunca yeniden çıkar.
+- **Sıkışma:** Bir yere takılırsa geri çıkıp yeni yol bulur.
+
+| Zorluk | Tepki | Nişan | Kaçınma |
+| --- | --- | --- | --- |
+| Kolay | Yavaş, sık tereddüt | Geniş titreme, hareketli hedefe zayıf | Nadiren |
+| Orta | Normal | Orta | Bazen |
+| Zor | Hızlı | Hassas, hareketli hedefin önüne atar | Çoğu zaman |
+
+Raunt başında iki taraf da ekrandaki geri sayımı bekler. Geri sayım bittiğinde kontroller birlikte açılır; bot hemen pozisyon almaya başlar ve ilk atışı kısa bir gecikmeden sonra yapar.
 
 Botlar da haritadaki güçlendirmeleri toplar: hız, kalkan, seri atış, iyileştirme, geçici dokunulmazlık ve güçlü mermi. Yakındaki ulaşılabilir güçlendirmelere yönelir; canları azaldığında iyileştirmeye öncelik verir. İyileştirme tabloda belirtilen azami canı aşmaz. Oyuncu ve bot aynı anda tek güçlendirme kullanabilir.
 

@@ -438,12 +438,28 @@ public partial class TankDuel : MonoBehaviour
             HideAllMenuPanels();
             StartCoroutine(StartMatchAfterSceneReady());
         }
+        else if (BotDuel && !botDuelStarted)
+        {
+            // Developer soak test: "TankDuel.exe -botduel" plays computer against computer and logs it.
+            botDuelStarted = true;
+            var args = Environment.GetCommandLineArgs();
+            int at = Array.IndexOf(args, "-botdifficulty");
+            if (at >= 0 && at + 1 < args.Length && int.TryParse(args[at + 1], out int level))
+                TankDuelData.AIDifficulty = level;
+            Tanks.Complete.TankAI.Telemetry = true;
+            isStartingMatch = true;
+            HideAllMenuPanels();
+            StartCoroutine(StartMatchAfterSceneReady());
+        }
         else
         {
             DuelSceneTransition.Complete(gameObject.scene.name);
             ShowMainMenu();
         }
     }
+
+    private static bool botDuelStarted;
+    private static readonly bool BotDuel = Array.IndexOf(Environment.GetCommandLineArgs(), "-botduel") >= 0;
 
     public static void ShowToast(string message, string context = null, Color? color = null)
     {
@@ -1426,7 +1442,7 @@ public partial class TankDuel : MonoBehaviour
         HideAllMenuPanels();
 
         gameManager.m_RoundDuration = RoundLengths[TankDuelData.DurationIndex];
-        bool isAI = TankDuelData.AIModeEnabled;
+        bool isAI = TankDuelData.AIModeEnabled || BotDuel;
 
         // Ensure prefabs are valid
         if (gameManager.m_Tank1Prefab == null && availableTanks != null && availableTanks.Length > 0)
@@ -1436,7 +1452,7 @@ public partial class TankDuel : MonoBehaviour
 
         var players = new[]
         {
-            new GameManager.PlayerData { UsedPrefab = gameManager.m_Tank1Prefab, TankColor = TankDuelData.GetPlayerColor(1), ControlIndex = 1, IsComputer = false },
+            new GameManager.PlayerData { UsedPrefab = gameManager.m_Tank1Prefab, TankColor = TankDuelData.GetPlayerColor(1), ControlIndex = 1, IsComputer = BotDuel },
             new GameManager.PlayerData { UsedPrefab = gameManager.m_Tank2Prefab, TankColor = TankDuelData.GetOpponentColor(), ControlIndex = 2, IsComputer = isAI }
         };
 

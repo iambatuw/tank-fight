@@ -4,59 +4,99 @@ using UnityEngine;
 using UnityEngine.AI;
 using Random = UnityEngine.Random;
 
-
 namespace Tanks.Complete
 {
     /// <summary>
-    /// Handle the tank control when the tank is set to Computer controlled
+    /// Computer opponent that plays like a person rather than a turret. It runs in three layers:
+    /// <list type="bullet">
+    /// <item>Perception: sees the enemy with a reaction delay, checks real line of sight against the level
+    /// colliders, notices when the enemy lines up a shot and tracks incoming shells.</item>
+    /// <item>Decisions: re-plans at a human cadence. It takes a firing position at its preferred range and
+    /// circles the enemy, grabs pickups that are worth it, falls back to cover when it is losing the trade or
+    /// reloading, and peeks out again when its gun is ready.</item>
+    /// <item>Hands: drives with throttle inertia, backs up instead of three-point turning, aims with a
+    /// wandering hand, leads moving targets, charges only as far as the range needs and dodges incoming fire.</item>
+    /// </list>
+    /// Difficulty changes how quickly and precisely it does all of this, not what it is allowed to do.
     /// </summary>
     public class TankAI : MonoBehaviour
     {
-        // Possible state of the Computer controlled tank : either seeking itsd target or fleeing from it
-        enum State
+        private enum Goal { Engage, Cover, Collect, Unstuck }
+
+        private struct Profile
         {
-            Seek,
-            Flee,
-            Collect
+            public float Reaction;       // seconds between the enemy doing something and the bot seeing it
+            public float AimWobble;      // degrees the aiming hand wanders
+            public float AimTolerance;   // degrees off target it still accepts when releasing a shot
+            public float Lead;           // 0..1 how well it leads a moving target
+            public float ChargeError;    // spread of the charge it releases at (fraction of full charge)
+            public float DodgeChance;    // chance it notices an incoming shot and dodges
+            public float DodgeReaction;  // seconds before a dodge starts
+            public float Think;          // seconds between re-planning
+            public float Speed, Turn;    // drive and turn speed scale
+            public float Hesitation;     // extra pause after the gun is ready again
+            public float Aggression;     // 0..1 how close it likes to fight and how rarely it hides
+            public float CoverHealth;    // health ratio under which it starts to play safe
         }
-    
-        private TankMovement m_Movement;                // Reference to the movement script
-        private TankShooting m_Shooting;                // Reference to the shooting script
+
+        private static readonly Profile[] Profiles =
+        {
+            new Profile { Reaction = .42f, AimWobble = 9f, AimTolerance = 8f, Lead = .3f, ChargeError = .12f,
+                DodgeChance = .15f, DodgeReaction = .45f, Think = .75f, Speed = .85f, Turn = .85f, Hesitation = .9f,
+                Aggression = .35f, CoverHealth = .2f },
+            new Profile { Reaction = .26f, AimWobble = 4.5f, AimTolerance = 5f, Lead = .7f, ChargeError = .06f,
+                DodgeChance = .45f, DodgeReaction = .28f, Think = .5f, Speed = 1f, Turn = 1f, Hesitation = .4f,
+                Aggression = .55f, CoverHealth = .32f },
+            new Profile { Reaction = .15f, AimWobble = 2f, AimTolerance = 3f, Lead = .95f, ChargeError = .03f,
+                DodgeChance = .75f, DodgeReaction = .16f, Think = .32f, Speed = 1.12f, Turn = 1.2f, Hesitation = .15f,
+                Aggression = .72f, CoverHealth = .4f },
+        };
+
+        private const float PowerUpSearchRadius = 18f;
+        private static readonly float[] SpotAngles = { 0f, 25f, -25f, 55f, -55f, 90f, -90f };
+
+        private Profile m_P = Profiles[1];
+        private TankMovement m_Movement;
+        private TankShooting m_Shooting;
         private PowerUpDetector m_PowerUpDetector;
         private TankHealth m_Health;
+        private GameObject[] m_AllTanks = new GameObject[0];
+
+        // perception
+        private Transform m_Target;
+        private Rigidbody m_TargetBody;
+        private TankShooting m_TargetShooting;
+        private TankHealth m_TargetHealth;
+        private readonly List<Vector4> m_TargetTrail = new List<Vector4>();   // xyz position, w time
+        private Vector3 m_SeenPos, m_SeenVel;
+        private bool m_HasLos;
+        private float m_LosTimer, m_ShellScanTimer;
+        private readonly RaycastHit[] m_Hits = new RaycastHit[16];
+        private readonly HashSet<ShellExplosion> m_JudgedShells = new HashSet<ShellExplosion>();
+        private bool m_EnemyChargeJudged;
+
+        // decisions
+        private Goal m_Goal = Goal.Engage;
+        private float m_ThinkTimer, m_GoalTimer, m_CoverHold, m_CoverCooldown, m_OrbitFlipTimer;
+        private bool m_WantCover;
+        private int m_OrbitSign = 1;
+        private NavMeshPath m_Path;
+        private int m_Corner;
         private PowerUp m_PowerUpTarget;
-        private float m_PowerUpSearchTimer;
-        private float m_OpeningMoveRemaining;
-        private float m_CollectTimer;
-        private const float PowerUpSearchInterval = 0.75f;
-        private const float PowerUpSearchRadius = 12f;
-        
-        private float m_PathfindTime = 0.5f;            // Only trigger a pathfind after this time, to not degrade performance
-        private float m_PathfindTimer = 0.0f;           // The time until the next pathfind call
 
-        private Transform m_CurrentTarget = null;       // Which Transform the tank is following
-        private float m_MaxShootingDistance = 0.0f;     // Store the max shooting distance based on TankShooting settings
-
-        private float m_TimeBetweenShot = 2.0f;         // The AI Tank have a cooldown on shot to avoid spamming shot
-        private float m_ShotCooldown = 0.0f;            // The remaining time until the next shot
-        private float m_AimPrecision = 0.98f;           // Dot product tolerance required to release shot
-        private float m_SpeedMultiplier = 1.0f;         // Difficulty speed scale
-        private float m_TurnMultiplier = 1.0f;          // Difficulty rotation scale
-
-        private Vector3 m_LastTargetPosition;           // The position of the target last frame
-        private float m_TimeSinceLastTargetMove;        // Timer counting how long the target hasn't moved. This is used to trigger the flee state
-        private float m_TimeCloseToTarget;
-
-        private Vector3 m_FleeingLastPosition;          // Used to check how far we moved as we flee. If this doesn't change for a while, need to pick another point
-        private float m_SinceLastFleeingMove = 0.0f;
-        
-        private NavMeshPath m_CurrentPath = null;       // The current path followed by the tank.
-        private int m_CurrentCorner = 0;                // Which corner of the path the tank is currently going forward to 
-        private bool m_IsMoving = false;                // Is the tank currently moving or not (the tank stop to shoot)
-
-        private GameObject[] m_AllTanks;                // List of all the tanks in the scene.
-
-        private State m_CurrentState = State.Seek;      // The current AI state the Tank is in.
+        // hands
+        private float m_Throttle, m_WantThrottle;
+        private Vector3 m_WantFacing;
+        private float m_DodgeTimer, m_DodgeThrottle, m_PendingDodge = -1f;
+        private Vector3 m_PendingDodgeFrom;
+        private float m_UnstuckTimer, m_UnstuckThrottle, m_UnstuckTurn;
+        private Vector3 m_StuckAnchor;
+        private float m_StuckTimer;
+        private bool m_Aiming;
+        private Vector3 m_AimDir;
+        private float m_AimCharge, m_ChargeNoise, m_ShotCooldown, m_Hesitate, m_OpeningDelay, m_AimSeed;
+        private float[] m_RangeTable;
+        private float m_MaxRange = 25f, m_HorizontalFactor = 1f;
 
         private void Awake()
         {
@@ -64,135 +104,376 @@ namespace Tanks.Complete
             m_Shooting = GetComponent<TankShooting>();
             m_PowerUpDetector = GetComponent<PowerUpDetector>();
             m_Health = GetComponent<TankHealth>();
-
-            // ensure that both movement and shooting script are set in "computer controlled" mode
             if (isActiveAndEnabled)
             {
                 if (m_Movement != null) m_Movement.m_IsComputerControlled = true;
                 if (m_Shooting != null) m_Shooting.m_IsComputerControlled = true;
             }
-
-            // to avoid all computer controlled tank pathfinding together (and taxing the CPU), AI tank have a random
-            // pathfinding time that will stagger them across multiple frame
-            m_PathfindTime = Random.Range(0.3f, 0.6f);
-
-            // Compute and store what is the maximum distance a shot from this tank can reach. This will be used when deciding when
-            // to start charging and when to release a shot
-            if (m_Shooting != null)
-                m_MaxShootingDistance = Vector3.Distance(m_Shooting.GetProjectilePosition(1.0f), transform.position);
-            else
-                m_MaxShootingDistance = 25f;
-            
-            // We use FindObjectByType to get all Tanks, to not depend on GameManager so user can try adding AI in an
-            // empty scene where no GameManager was added yet.
+            m_AimSeed = Random.value * 100f;
+            // Works without a GameManager too, so a bot can be dropped into any scene.
             m_AllTanks = FindObjectsByType<TankMovement>(FindObjectsInactive.Exclude).Select(e => e.gameObject).ToArray();
         }
 
-        // If a GameManager exist, it will call this function after creating a computer controlled tank. This just replace
-        // the list of tanks with the one from the GameManager
         public void Setup(GameManager manager)
         {
-            // If this was using manager.m_SpawnPoints.ToArray(), it will get an array of TankManager, but m_AllTanks is an array of Transform.
-            // The Select function will call the function passed as a parameter on each entry in the list (here TankManager) and make a new list
-            // containing what each return. The function we pass here, e => e.m_Instance, return the Transform of the tank the TankManager manage
-            // so effectively manager.m_SpawnPoints.Select(e => e.m_Instance) give a list of all the tanks transform.
             m_AllTanks = manager.m_SpawnPoints.Select(e => e.m_Instance).ToArray();
             ApplyDifficulty(TankDuelData.AIDifficulty);
         }
 
-        public void ApplyDifficulty(int difficulty)
-        {
-            switch (difficulty)
-            {
-                case 0: // Easy (Kolay)
-                    m_TimeBetweenShot = 3.2f;
-                    m_AimPrecision = 0.91f;
-                    m_PathfindTime = 0.8f;
-                    m_SpeedMultiplier = 0.85f;
-                    m_TurnMultiplier = 0.85f;
-                    break;
-                case 1: // Medium (Orta)
-                    m_TimeBetweenShot = 1.9f;
-                    m_AimPrecision = 0.98f;
-                    m_PathfindTime = 0.45f;
-                    m_SpeedMultiplier = 1.0f;
-                    m_TurnMultiplier = 1.0f;
-                    break;
-                case 2: // Hard (Zor)
-                    m_TimeBetweenShot = 1.1f;
-                    m_AimPrecision = 0.995f;
-                    m_PathfindTime = 0.25f;
-                    m_SpeedMultiplier = 1.25f;
-                    m_TurnMultiplier = 1.35f;
-                    break;
-            }
-        }
+        public void ApplyDifficulty(int difficulty) => m_P = Profiles[Mathf.Clamp(difficulty, 0, Profiles.Length - 1)];
 
-        public void TurnOff()
-        {
-            enabled = false;
-        }
+        public void TurnOff() => enabled = false;
 
         private void OnEnable()
         {
-            // Reacquire a route immediately after every countdown, including respawns.
-            m_PathfindTimer = m_PathfindTime;
-            m_OpeningMoveRemaining = 0.8f;
+            m_Goal = Goal.Engage;
+            m_Path = null;
+            m_PowerUpTarget = null;
+            m_TargetTrail.Clear();
+            m_JudgedShells.Clear();
+            m_Throttle = m_WantThrottle = 0f;
+            m_WantFacing = Vector3.zero;
+            m_DodgeTimer = m_UnstuckTimer = m_ShotCooldown = m_Hesitate = m_GoalTimer = m_CoverCooldown = 0f;
+            m_PendingDodge = -1f;
+            m_Aiming = m_WantCover = m_EnemyChargeJudged = false;
+            // A short look around before the first move, and nobody fires the instant a round starts.
+            m_ThinkTimer = Random.Range(.1f, .3f) + m_P.Reaction;
+            m_OpeningDelay = .6f + m_P.Reaction + Random.Range(0f, .4f);
+            m_StuckAnchor = transform.position;
+            m_StuckTimer = 0f;
+            m_RangeTable = null;
         }
 
         private void OnDisable()
         {
+            m_Path = null;
             m_PowerUpTarget = null;
-            m_CurrentState = State.Seek;
-            m_CurrentTarget = null;
-            m_CurrentPath = null;
-            m_CurrentCorner = 0;
-            m_IsMoving = false;
-            m_PathfindTimer = m_PathfindTime;
-            m_PowerUpSearchTimer = 0f;
-            m_CollectTimer = 0f;
-            m_ShotCooldown = 0f;
-            m_TimeSinceLastTargetMove = m_TimeCloseToTarget = 0f;
+            m_Aiming = false;
+            m_Throttle = m_WantThrottle = 0f;
         }
 
-        void Update()
+        private void Update()
         {
             if (Time.timeScale <= 0f) return;
-            m_OpeningMoveRemaining = Mathf.Max(0f, m_OpeningMoveRemaining - Time.deltaTime);
-            // If there is a cooldown active, we decrement it by the time elapsed since last frame
-            if(m_ShotCooldown > 0)
-                m_ShotCooldown -= Time.deltaTime /
-                    (m_PowerUpDetector != null ? m_PowerUpDetector.ShootingCooldownMultiplier : 1f);
-            
-            // increment the time since last pathfind. The SeekUpdate will check if it goes over the pathfinding time
-            // and if it need to trigger a new pathfinding
-            m_PathfindTimer += Time.deltaTime;
-            m_PowerUpSearchTimer += Time.deltaTime;
-            if (m_CurrentState != State.Collect && m_PowerUpSearchTimer >= PowerUpSearchInterval)
-            {
-                m_PowerUpSearchTimer = 0f;
-                if (m_Shooting == null || !m_Shooting.IsCharging) TrySeekPowerUp();
-            }
+            float dt = Time.deltaTime;
+            if (m_RangeTable == null) BuildRangeTable();
 
-            switch (m_CurrentState)
+            float cooldownScale = m_PowerUpDetector != null ? m_PowerUpDetector.ShootingCooldownMultiplier : 1f;
+            if (m_ShotCooldown > 0f) m_ShotCooldown -= dt / cooldownScale;
+            if (m_ShotCooldown <= 0f) m_Hesitate -= dt;
+            m_OpeningDelay -= dt;
+            m_CoverCooldown -= dt;
+            m_OrbitFlipTimer -= dt;
+            m_GoalTimer += dt;
+
+            Perceive(dt);
+            WatchThreats(dt);
+            m_ThinkTimer -= dt;
+            if (m_ThinkTimer <= 0f)
             {
-                case State.Seek:
-                    SeekUpdate();
-                    break;
-                case State.Flee:
-                    FleeUpdate();
-                    break;
-                case State.Collect:
-                    CollectUpdate();
-                    break;
+                m_ThinkTimer = m_P.Think * Random.Range(.7f, 1.3f);
+                Think();
+            }
+            Steer(dt);
+            Shoot();
+
+            if (Telemetry && (m_LogTimer -= dt) <= 0f)
+            {
+                m_LogTimer = 2f;
+                Log($"goal={m_Goal} hp={Ratio(m_Health):0.00} pos=({transform.position.x:0.0},{transform.position.z:0.0}) " +
+                    $"dist={(m_Target != null ? FlatDist(transform.position, m_Target.position) : -1f):0.0} los={m_HasLos} " +
+                    $"throttle={m_Throttle:0.00}");
             }
         }
 
-        private bool TrySeekPowerUp()
+        /// <summary>Set by the "-botduel" soak test to write what the bots do to the player log.</summary>
+        public static bool Telemetry;
+        private float m_LogTimer;
+
+        private void Log(string message) => Debug.Log($"[BotDuel] {name} t={Time.timeSinceLevelLoad:0.0} {message}");
+
+        // ---------------------------------------------------------------- perception
+
+        private void Perceive(float dt)
+        {
+            PickTarget();
+            if (m_Target == null)
+            {
+                m_HasLos = false;
+                return;
+            }
+            float now = Time.time;
+            Vector3 p = m_Target.position;
+            m_TargetTrail.Add(new Vector4(p.x, p.y, p.z, now));
+            while (m_TargetTrail.Count > 2 && now - m_TargetTrail[1].w > m_P.Reaction + .6f)
+                m_TargetTrail.RemoveAt(0);
+            m_SeenPos = TrailAt(now - m_P.Reaction);
+            m_SeenVel = Flat(m_SeenPos - TrailAt(now - m_P.Reaction - .25f)) / .25f;
+
+            m_LosTimer -= dt;
+            if (m_LosTimer <= 0f)
+            {
+                m_LosTimer = .1f;
+                m_HasLos = ClearShot(transform.position, m_Target.position);
+            }
+        }
+
+        private void PickTarget()
+        {
+            Transform best = null;
+            float bestDist = float.MaxValue;
+            foreach (var tank in m_AllTanks)
+            {
+                if (tank == null || tank == gameObject || !tank.activeInHierarchy) continue;
+                float d = FlatDist(transform.position, tank.transform.position);
+                if (tank.transform == m_Target) d *= .8f;   // don't flip between targets every frame
+                if (d < bestDist)
+                {
+                    bestDist = d;
+                    best = tank.transform;
+                }
+            }
+            if (best == m_Target) return;
+            m_Target = best;
+            m_TargetTrail.Clear();
+            m_EnemyChargeJudged = false;
+            m_TargetBody = best != null ? best.GetComponent<Rigidbody>() : null;
+            m_TargetShooting = best != null ? best.GetComponent<TankShooting>() : null;
+            m_TargetHealth = best != null ? best.GetComponent<TankHealth>() : null;
+        }
+
+        private Vector3 TrailAt(float time)
+        {
+            for (int i = m_TargetTrail.Count - 1; i >= 0; i--)
+            {
+                if (m_TargetTrail[i].w > time) continue;
+                if (i == m_TargetTrail.Count - 1) return m_TargetTrail[i];
+                Vector4 a = m_TargetTrail[i], b = m_TargetTrail[i + 1];
+                float t = Mathf.InverseLerp(a.w, b.w, time);
+                return Vector3.Lerp(a, b, t);
+            }
+            return m_TargetTrail[0];
+        }
+
+        /// <summary>True when nothing solid but tanks lies between the two hull positions at gun height.</summary>
+        private bool ClearShot(Vector3 from, Vector3 to)
+        {
+            Vector3 a = from + Vector3.up * 1.1f, b = to + Vector3.up * 1.1f;
+            Vector3 d = b - a;
+            float len = d.magnitude;
+            if (len < .01f) return true;
+            int n = Physics.RaycastNonAlloc(a, d / len, m_Hits, len, ~0, QueryTriggerInteraction.Ignore);
+            for (int i = 0; i < n; i++)
+            {
+                var body = m_Hits[i].collider.attachedRigidbody;
+                if (body != null && body.GetComponent<TankMovement>() != null) continue;
+                return false;
+            }
+            return true;
+        }
+
+        private void WatchThreats(float dt)
+        {
+            if (m_DodgeTimer > 0f) m_DodgeTimer -= dt;
+            if (m_PendingDodge >= 0f)
+            {
+                m_PendingDodge -= dt;
+                if (m_PendingDodge < 0f) BeginDodge(m_PendingDodgeFrom);
+            }
+
+            // The enemy is holding fire with its gun on us: a sharp player jinks before the shot leaves.
+            if (m_TargetShooting != null)
+            {
+                if (!m_TargetShooting.IsCharging) m_EnemyChargeJudged = false;
+                else if (!m_EnemyChargeJudged)
+                {
+                    Vector3 toMe = Flat(transform.position - m_Target.position);
+                    if (toMe.magnitude < m_MaxRange * 1.1f && Vector3.Angle(Flat(m_Target.forward), toMe) < 14f)
+                    {
+                        m_EnemyChargeJudged = true;
+                        if (Random.value < m_P.DodgeChance * .7f) ScheduleDodge(transform.position);
+                    }
+                }
+            }
+
+            // Shells already in the air.
+            m_ShellScanTimer -= dt;
+            if (m_ShellScanTimer > 0f) return;
+            m_ShellScanTimer = .08f;
+            var shells = ShellExplosion.Active;
+            if (shells.Count == 0)
+            {
+                m_JudgedShells.Clear();
+                return;
+            }
+            float g = Physics.gravity.y;
+            for (int i = 0; i < shells.Count; i++)
+            {
+                var shell = shells[i];
+                if (shell == null || shell.HasExploded || shell.Body == null) continue;
+                if (m_JudgedShells.Contains(shell)) continue;
+                Vector3 p = shell.Body.position, v = shell.Body.linearVelocity;
+                if (Vector3.Dot(Flat(v), Flat(transform.position - p)) <= 0f)
+                {
+                    m_JudgedShells.Add(shell);   // flying away from us (our own shot)
+                    continue;
+                }
+                float disc = v.y * v.y - 2f * g * p.y;
+                if (disc < 0f || g >= 0f) continue;
+                float t = (-v.y - Mathf.Sqrt(disc)) / g;
+                Vector3 landing = p + Flat(v) * t;
+                if (t > 1.5f || FlatDist(landing, transform.position) > shell.m_ExplosionRadius * .8f + 1f) continue;
+                m_JudgedShells.Add(shell);
+                if (Random.value < m_P.DodgeChance) ScheduleDodge(landing);
+            }
+        }
+
+        private void ScheduleDodge(Vector3 threat)
+        {
+            if (m_DodgeTimer > 0f || m_PendingDodge >= 0f) return;
+            m_PendingDodgeFrom = threat;
+            m_PendingDodge = m_P.DodgeReaction * Random.Range(.8f, 1.25f);
+        }
+
+        private void BeginDodge(Vector3 threat)
+        {
+            // A tank can only drive along its hull, so the dodge is a burst forwards or backwards,
+            // away from the danger when that is clear, and the other way when a wall is in the way.
+            Vector3 f = Flat(transform.forward).normalized;
+            Vector3 away = Flat(transform.position - threat);
+            float sign = away.sqrMagnitude > .25f ? Mathf.Sign(Vector3.Dot(f, away)) : (Random.value < .5f ? 1f : -1f);
+            if (!DriveClear(f * sign, 4f)) sign = -sign;
+            if (!DriveClear(f * sign, 4f)) return;
+            m_DodgeThrottle = sign;
+            m_DodgeTimer = Random.Range(.55f, .9f);
+            if (Telemetry) Log($"dodge {(sign > 0 ? "forward" : "back")}");
+        }
+
+        private bool DriveClear(Vector3 dir, float distance)
+        {
+            if (!NavMesh.SamplePosition(transform.position, out var start, 2f, NavMesh.AllAreas)) return true;
+            return !NavMesh.Raycast(start.position, start.position + dir * distance, out _, NavMesh.AllAreas);
+        }
+
+        // ---------------------------------------------------------------- decisions
+
+        private void Think()
+        {
+            if (m_Goal == Goal.Unstuck) return;
+            if (m_Target == null)
+            {
+                m_Goal = Goal.Engage;
+                m_Path = null;
+                return;
+            }
+            float hp = Ratio(m_Health), enemyHp = Ratio(m_TargetHealth);
+
+            if (m_Goal == Goal.Collect && m_PowerUpTarget != null && m_GoalTimer < 6f &&
+                m_PowerUpTarget.CanBeCollectedBy(m_PowerUpDetector))
+                return;
+            if (TryChoosePowerUp(hp)) return;
+
+            if (m_Goal == Goal.Cover)
+            {
+                // Peek out again once the gun is loaded, or when hiding has gone on long enough.
+                bool ready = m_ShotCooldown <= 0f && m_GoalTimer > .8f;
+                if (m_GoalTimer < m_CoverHold && !ready) return;
+                m_CoverCooldown = Random.Range(3f, 6f);
+            }
+            else
+            {
+                bool losing = hp < m_P.CoverHealth && hp <= enemyHp + .05f;
+                if ((m_WantCover || (losing && m_ShotCooldown > .3f)) && m_CoverCooldown <= 0f && TryFindCover())
+                {
+                    m_WantCover = false;
+                    return;
+                }
+            }
+            m_WantCover = false;
+            ChooseFiringSpot();
+        }
+
+        private void SetGoal(Goal goal, NavMeshPath path)
+        {
+            if (goal != m_Goal) m_GoalTimer = 0f;
+            m_Goal = goal;
+            m_Path = path;
+            m_Corner = 1;
+        }
+
+        private void ChooseFiringSpot()
+        {
+            float preferred = PreferredRange();
+            if (m_OrbitFlipTimer <= 0f)
+            {
+                m_OrbitFlipTimer = Random.Range(3f, 7f);
+                if (Random.value < .5f) m_OrbitSign = -m_OrbitSign;
+            }
+            Vector3 enemy = m_SeenPos;
+            Vector3 fromEnemy = Flat(transform.position - enemy);
+            fromEnemy = fromEnemy.sqrMagnitude > .01f ? fromEnemy.normalized : -Flat(m_Target.forward).normalized;
+
+            NavMeshPath best = null;
+            bool bestSees = false;
+            float bestScore = float.MaxValue;
+            foreach (float angle in SpotAngles)
+            {
+                foreach (float rangeScale in new[] { 1f, .7f })
+                {
+                    float r = preferred * rangeScale;
+                    Vector3 spot = enemy + Quaternion.AngleAxis(angle, Vector3.up) * fromEnemy * r;
+                    if (!NavMesh.SamplePosition(spot, out var hit, 4f, NavMesh.AllAreas)) continue;
+                    if (!PathTo(hit.position, out var path, out float length)) continue;
+                    bool sees = ClearShot(hit.position, enemy);
+                    float score = length + Mathf.Abs(FlatDist(hit.position, enemy) - preferred) * .3f;
+                    if (sees) score -= 12f;
+                    if (angle != 0f && Mathf.Sign(angle) == m_OrbitSign) score -= 3f;   // keep circling one way
+                    if (length < 1.5f) score += 4f;                                     // don't sit still
+                    score += Random.Range(0f, 2.5f);
+                    if (score >= bestScore) continue;
+                    bestScore = score;
+                    best = path;
+                    bestSees = sees;
+                }
+            }
+            // No reachable spot sees the enemy: push towards it, the shot opens up on the way.
+            if (!bestSees && NavMesh.SamplePosition(enemy, out var e, 3f, NavMesh.AllAreas) &&
+                PathTo(e.position, out var direct, out _))
+                best = direct;
+            SetGoal(Goal.Engage, best);
+        }
+
+        private bool TryFindCover()
+        {
+            Vector3 enemy = m_SeenPos;
+            NavMeshPath best = null;
+            float bestScore = float.MaxValue;
+            for (int i = 0; i < 10; i++)
+            {
+                Vector3 dir = Quaternion.AngleAxis(i * 36f + Random.Range(-10f, 10f), Vector3.up) * Vector3.forward;
+                foreach (float r in new[] { 6f, 10f })
+                {
+                    if (!NavMesh.SamplePosition(transform.position + dir * r, out var hit, 2f, NavMesh.AllAreas)) continue;
+                    if (FlatDist(hit.position, enemy) < 8f || ClearShot(hit.position, enemy)) continue;
+                    if (!PathTo(hit.position, out var path, out float length) || length > 16f) continue;
+                    float score = length - FlatDist(hit.position, enemy) * .3f + Random.Range(0f, 2f);
+                    if (score >= bestScore) continue;
+                    bestScore = score;
+                    best = path;
+                }
+            }
+            if (best == null) return false;
+            SetGoal(Goal.Cover, best);
+            m_GoalTimer = 0f;
+            m_CoverHold = Random.Range(1.5f, 3f);
+            return true;
+        }
+
+        private bool TryChoosePowerUp(float hp)
         {
             if (m_PowerUpDetector == null || !m_PowerUpDetector.CanCollectPowerUp) return false;
-            NavMeshHit start;
-            if (!NavMesh.SamplePosition(transform.position, out start, 3f, NavMesh.AllAreas)) return false;
+            float enemyDist = m_Target != null ? FlatDist(transform.position, m_SeenPos) : float.MaxValue;
+            bool brawling = enemyDist < 10f && m_HasLos && hp > .5f;
 
             PowerUp best = null;
             NavMeshPath bestPath = null;
@@ -203,21 +484,15 @@ namespace Tanks.Complete
                 var pickup = pickups[i];
                 if (pickup == null || !pickup.CanBeCollectedBy(m_PowerUpDetector)) continue;
                 bool healing = pickup.Type == PowerUp.PowerUpType.Healing;
-                if (healing && (m_Health == null || m_Health.CurrentHealth >= m_Health.MaxHealth)) continue;
-                Vector3 offset = pickup.transform.position - transform.position;
-                offset.y = 0f;
-                if (offset.sqrMagnitude > PowerUpSearchRadius * PowerUpSearchRadius) continue;
-                NavMeshHit destination;
-                if (!NavMesh.SamplePosition(pickup.transform.position, out destination, 2f, NavMesh.AllAreas)) continue;
-                Vector3 pickupOffset = destination.position - pickup.transform.position;
-                pickupOffset.y = 0f;
-                if (pickupOffset.sqrMagnitude > 1f) continue;
-                var path = new NavMeshPath();
-                if (!NavMesh.CalculatePath(start.position, destination.position, NavMesh.AllAreas, path) ||
-                    path.status != NavMeshPathStatus.PathComplete || path.corners.Length < 2) continue;
-                float length = GetPathLength(path);
-                if (length > PowerUpSearchRadius * 1.5f) continue;
-                float score = healing && m_Health.CurrentHealth < m_Health.MaxHealth * 0.7f ? length * 0.45f : length;
+                if (healing && hp >= .98f) continue;
+                Vector3 at = pickup.transform.position;
+                if (FlatDist(at, transform.position) > PowerUpSearchRadius) continue;
+                if (!NavMesh.SamplePosition(at, out var hit, 2f, NavMesh.AllAreas) || FlatDist(hit.position, at) > 1f) continue;
+                if (!PathTo(hit.position, out var path, out float length) || length > PowerUpSearchRadius * 1.4f) continue;
+                if (brawling && !healing && length > 6f) continue;
+                // Don't race the enemy to a pickup it will clearly reach first.
+                if (m_Target != null && FlatDist(m_SeenPos, at) < length * .6f && !healing) continue;
+                float score = healing && hp < .7f ? length * .4f : length;
                 if (score >= bestScore) continue;
                 bestScore = score;
                 best = pickup;
@@ -225,349 +500,269 @@ namespace Tanks.Complete
             }
             if (best == null) return false;
             m_PowerUpTarget = best;
-            m_CurrentPath = bestPath;
-            m_CurrentCorner = 1;
-            m_CurrentState = State.Collect;
-            m_CollectTimer = 0f;
-            m_PathfindTimer = 0f;
-            m_IsMoving = true;
+            SetGoal(Goal.Collect, bestPath);
             return true;
         }
 
-        private void CollectUpdate()
+        // Shells can fly further than the arenas are wide, so the comfortable fighting distance is capped.
+        private float PreferredRange() =>
+            Mathf.Min(m_MaxRange * Mathf.Lerp(.85f, .5f, m_P.Aggression), Mathf.Lerp(24f, 13f, m_P.Aggression));
+
+        // ---------------------------------------------------------------- hands
+
+        private void Steer(float dt)
         {
-            m_CollectTimer += Time.deltaTime;
-            if (m_PowerUpTarget == null || !m_PowerUpTarget.CanBeCollectedBy(m_PowerUpDetector) ||
-                m_CollectTimer >= 6f || m_CurrentPath == null)
+            Vector3 pos = transform.position;
+            Vector3 f = Flat(transform.forward).normalized;
+
+            CheckStuck(dt, pos);
+            if (m_Goal == Goal.Unstuck)
             {
-                m_PowerUpTarget = null;
-                m_CurrentState = State.Seek;
-                m_CurrentPath = null;
-                m_IsMoving = false;
-                m_PathfindTimer = m_PathfindTime;
-                // Give fighting a turn before looking for another pickup.
-                m_PowerUpSearchTimer = -1.5f;
-                return;
-            }
-            m_IsMoving = true;
-        }
-
-        void SeekUpdate()
-        {
-            // To lighten the load on the CPU the tanks do not pathfind to their target every single frame. Instead, they
-            // wait a bit between each pathfind. They will go toward an "outdated" position in between, but as the pathfind time is 
-            // under 1s, this is visually not noticeable and a lot more efficient than trying to pathfinding 30+ time each second
-            if (m_PathfindTimer > m_PathfindTime)
-            {
-                // reset the time since last pathfind
-                m_PathfindTimer = 0;
-
-                // This will store each path toward each tank in the scene
-                NavMeshPath[] paths = new NavMeshPath[m_AllTanks.Length];
-                
-                // Initialize the shorted path length to the max value a float can have, so no matter what is the length
-                // of the first found path, it will for sure be shortest than this initial value
-                float shortestPath = float.MaxValue;
-                // which of the path in the paths array we use. By default none, which is represented by -1 here.
-                int usedPath = -1;
-                Transform target = null;
-                
-                // Calculate a path to every tank and check the closest
-                for (var i = 0; i < m_AllTanks.Length; i++)
+                m_Aiming = false;
+                m_UnstuckTimer -= dt;
+                m_WantThrottle = m_UnstuckThrottle;
+                m_WantFacing = Quaternion.AngleAxis(60f * m_UnstuckTurn, Vector3.up) * f;
+                if (m_UnstuckTimer <= 0f)
                 {
-                    var tank = m_AllTanks[i];
-
-                    //we don't want the tank to try to target itself, so ignore itself
-                    if (tank == gameObject)
-                        continue;
-                    
-                    // this is a destroyed or deactivated tank, this is not a valid target
-                    if(tank == null || !tank.activeInHierarchy)
-                        continue;
-
-                    paths[i] = new NavMeshPath();
-
-                    // this return true if a path was found
-                    NavMeshHit origin;
-                    NavMeshHit destination;
-                    if (NavMesh.SamplePosition(transform.position, out origin, 3f, NavMesh.AllAreas) &&
-                        NavMesh.SamplePosition(tank.transform.position, out destination, 3f, NavMesh.AllAreas) &&
-                        NavMesh.CalculatePath(origin.position, destination.position, NavMesh.AllAreas, paths[i]) &&
-                        paths[i].status == NavMeshPathStatus.PathComplete && paths[i].corners.Length >= 2)
-                    {
-                        // Compute how long the path is...
-                        float length = GetPathLength(paths[i]);
-                        // And if it's the shortest path so far, this is the one we want to go after
-                        if (shortestPath > length)
-                        {
-                            // so this path become the used path
-                            usedPath = i;
-                            //and its length is now the shortest length to beat
-                            shortestPath = length;
-                            target = tank.transform;
-                        }
-                    }
+                    m_Goal = Goal.Engage;
+                    m_Path = null;
+                    m_ThinkTimer = 0f;
                 }
-
-                // usedPath will still be -1 if the tank could not find a path to any tank, otherwise we have a target
-                if (usedPath != -1)
-                {
-                    // we switched target. The last tank we were seeking got farther away than another tank, this new
-                    // tank become our new target, and we reset the last position as this is now a new target
-                    if (target != m_CurrentTarget)
-                    {
-                        m_CurrentTarget = target;
-                        m_LastTargetPosition = m_CurrentTarget.position;
-                    }
-
-                    m_CurrentTarget = target;
-                    m_CurrentPath = paths[usedPath];
-                    m_CurrentCorner = 1;
-                    m_IsMoving = true;
-                }
-
-               
-            }
-            // The pathfinding is now either finished or wasn't triggered this frame as it was done recently enough
-            // The SeekUpdate now seek and try to shot at the target it has
-
-            // This tank have a target...
-            if (m_CurrentTarget != null)
-            {
-                // check how far our target moved since last update
-                float targetMovement = Vector3.Distance(m_CurrentTarget.position, m_LastTargetPosition);
-
-                //the target didn't (or barely) moved...
-                if (targetMovement < 0.001f)
-                {
-                    // so we increment the timer. This is used later, if a target we're shooting at haven't moved in 2s, we flee
-                    m_TimeSinceLastTargetMove += Time.deltaTime;
-                }
-                else
-                {
-                    //the target did move since last time, so we reset the timer since last move to 0.
-                    m_TimeSinceLastTargetMove = 0;
-                }
-
-                // the current position become the last position that will be used next frame to test if the target moved
-                m_LastTargetPosition = m_CurrentTarget.position;
-                
-                // Get a vector from this tank to its target
-                Vector3 toTarget = m_CurrentTarget.position - transform.position;
-                // by setting y to 0, we ensure that the vector to the target is in the flat plane of the ground
-                toTarget.y = 0;
-                
-                float targetDistance = toTarget.magnitude;
-                // normalize the vector to the target, setting its length to 1, which is useful for some mathematical operations.
-                toTarget.Normalize();
-
-                if (targetDistance < 3.0f)
-                {
-                    // Count how long we've been very close to the target
-                    m_TimeCloseToTarget += Time.deltaTime;
-
-                    // ... if we stay close to the target more than 2s, we're probably running in circle around it, so
-                    // flee instead to try to get more space to aim at it
-                    if (m_TimeCloseToTarget > 2.0f)
-                    {
-                        StartFleeing();
-                        return;
-                    }
-                }
-                else
-                {
-                    m_TimeCloseToTarget = 0.0f;
-                }
-                
-                // the dot product between 2 normalized vector is the cosine of the angle between those vector. This is useful as it
-                // allow to test how aligned those vector are : 1 -> in the same direction, 0 -> 90 deg angle, -1, pointing in opposite direction.
-                // As we compute the dot product between our forward vector and the vector toward our target, this give use how much we are
-                // facing our target : if this is close to 1, we are facing straight at our target.
-                float dotToTarget = Vector3.Dot(toTarget, transform.forward);
-                
-                //if we are charging, check if the current shot can reach the target
-                if (m_Shooting != null && m_Shooting.IsCharging)
-                {
-                    // get the estimated point of the projectile with the current charging value
-                    Vector3 currentShotTarget = m_Shooting.GetProjectilePosition(m_Shooting.CurrentChargeRatio);
-                    // the distance from us to that estimated point
-                    float currentShotDistance = Vector3.Distance(currentShotTarget, transform.position);
-
-                    //if we are facing the target and our shot is charged enough to reach the target, release the shot
-                    // note : we remove 2 from the target distance as our shot have splash damage, so we can release the
-                    // shot earlier
-                    if (currentShotDistance >= targetDistance - 2 && dotToTarget > m_AimPrecision)
-                    {
-                        m_IsMoving = false;
-                        m_Shooting.StopCharging();
-
-                        // we just shot, so we set the cooldown to the time between shot (this is decremented each frame in the update function)
-                        m_ShotCooldown = m_TimeBetweenShot;
-
-                        // We just shot, and our target haven't moved for a while. Which mean they are probably also aiming and shooting at us
-                        // we go into fleeing mode instead of staying there as a static target
-                        if (m_TimeSinceLastTargetMove > 2.0f)
-                        {
-                            StartFleeing();
-                        }
-                    }
-                }
-                else if (m_Shooting != null)
-                {
-                    // We aren't charging yet, so check if the target is closer than our max shooting distance, which mean we can start charging the shot
-                    // (a "smarter" solution would be to compute how early we can charge so we reach max distance already max charged)
-                    if (targetDistance < m_MaxShootingDistance && m_OpeningMoveRemaining <= 0f)
-                    {
-                        // This use the navmesh to check if there are any obstacle between us and the target. If this return false
-                        // this mean there is no unobstructed path, so there *is* an obstacle, so we shouldn't start shooting yet
-                        if (!NavMesh.Raycast(transform.position, m_CurrentTarget.position, out var hit, ~0))
-                        {
-                            // we stop moving as we can reach our target with our shot
-                            m_IsMoving = false;
-
-                            // if our cooldown is not 0 or below, we have to wait for it to be before shooting. If it is
-                            // below 0, we start charging
-                            if (m_ShotCooldown <= 0.0f)
-                            {
-                                m_Shooting.StartCharging();
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        private void FleeUpdate()
-        {
-            // When fleeing the tank will go toward a random point away from its target. When we reach the last corners
-            // (i.e. point) of that path, we can go back to seek mode
-            if (m_CurrentPath == null || m_CurrentPath.corners == null || m_CurrentCorner >= m_CurrentPath.corners.Length)
-            {
-                m_CurrentState = State.Seek;
                 return;
             }
 
-            //check how far we moved since last update, if we don't move enough for a while, we're stuck somewhere, pick another point
-            var distance = (transform.position - m_FleeingLastPosition).magnitude;
-            m_FleeingLastPosition = transform.position;
-
-            if (distance < 0.001f)
+            // where the route goes next
+            Vector3 moveDir = Vector3.zero;
+            float remaining = 0f;
+            if (m_Path != null && m_Path.corners != null)
             {
-                m_SinceLastFleeingMove += Time.deltaTime;
+                var corners = m_Path.corners;
+                while (m_Corner < corners.Length && FlatDist(pos, corners[m_Corner]) < 1.2f) m_Corner++;
+                if (m_Corner < corners.Length)
+                {
+                    Vector3 to = Flat(corners[m_Corner] - pos);
+                    moveDir = to.normalized;
+                    remaining = to.magnitude;
+                    for (int i = m_Corner + 1; i < corners.Length; i++) remaining += FlatDist(corners[i - 1], corners[i]);
+                }
+            }
+
+            float dist = m_Target != null ? FlatDist(pos, m_SeenPos) : float.MaxValue;
+            bool gunReady = m_Shooting != null && (m_Shooting.IsCharging || (m_ShotCooldown <= 0f && m_Hesitate <= 0f));
+            m_Aiming = m_Target != null && m_HasLos && m_OpeningDelay <= 0f && gunReady && dist <= m_MaxRange * 1.05f;
+
+            if (m_Aiming)
+            {
+                Vector3 aimPoint = ComputeAimPoint(out m_AimCharge);
+                float wobble = m_P.AimWobble * (Mathf.PerlinNoise(Time.time * .9f, m_AimSeed) * 2f - 1f);
+                m_AimDir = Quaternion.AngleAxis(wobble, Vector3.up) * Flat(aimPoint - pos).normalized;
+                m_WantFacing = m_AimDir;
+                // Keep the range while lining up: creep in, back off, or rock to stay a moving target.
+                float preferred = PreferredRange();
+                float along = dist > preferred + 3f ? .55f
+                    : dist < Mathf.Max(5f, preferred - 4f) ? -.6f
+                    : Mathf.Sin(Time.time * 2.3f + m_AimSeed) * .35f;
+                if (m_DodgeTimer > 0f) along = m_DodgeThrottle;
+                m_WantThrottle = along * (Vector3.Dot(f, m_AimDir) > .5f ? 1f : .3f);
+                return;
+            }
+
+            if (m_DodgeTimer > 0f)
+            {
+                m_WantFacing = f;
+                m_WantThrottle = m_DodgeThrottle;
+                return;
+            }
+
+            if (moveDir != Vector3.zero)
+            {
+                float dot = Vector3.Dot(f, moveDir);
+                bool reverse = dot < -.35f && remaining < 9f;   // back up rather than turn around for a short hop
+                if (m_Goal == Goal.Cover && m_Target != null && dot < 0f &&
+                    Vector3.Dot(f, Flat(m_SeenPos - pos).normalized) > .3f)
+                    reverse = true;                              // retreat with the strong front armour to the enemy
+                if (reverse)
+                {
+                    m_WantFacing = -moveDir;
+                    m_WantThrottle = -(dot < -.75f ? 1f : Mathf.Clamp01((-dot - .1f) / .65f));
+                }
+                else
+                {
+                    m_WantFacing = moveDir;
+                    m_WantThrottle = dot > .75f ? 1f : Mathf.Clamp01((dot - .1f) / .65f);
+                }
+                if (remaining < 2.5f) m_WantThrottle *= Mathf.Lerp(.35f, 1f, remaining / 2.5f);
+                return;
+            }
+
+            // Arrived: face the enemy, ready for the next shot, and plan the next move soon.
+            m_WantFacing = m_Target != null ? Flat(m_SeenPos - pos).normalized : f;
+            m_WantThrottle = 0f;
+            m_ThinkTimer = Mathf.Min(m_ThinkTimer, m_HasLos ? .2f : .1f);
+        }
+
+        private void CheckStuck(float dt, Vector3 pos)
+        {
+            m_StuckTimer += dt;
+            if (m_StuckTimer < 1f) return;
+            if (m_Goal != Goal.Unstuck && Mathf.Abs(m_Throttle) > .5f && FlatDist(pos, m_StuckAnchor) < .5f)
+            {
+                m_Goal = Goal.Unstuck;
+                m_UnstuckTimer = Random.Range(.5f, .8f);
+                m_UnstuckThrottle = -Mathf.Sign(m_Throttle);
+                m_UnstuckTurn = Random.value < .5f ? 1f : -1f;
+            }
+            m_StuckAnchor = pos;
+            m_StuckTimer = 0f;
+        }
+
+        private void Shoot()
+        {
+            if (m_Shooting == null) return;
+            Vector3 f = Flat(transform.forward).normalized;
+            float error = Vector3.Angle(f, m_AimDir);
+
+            if (!m_Shooting.IsCharging)
+            {
+                // Press the trigger while still swinging onto the target, like a player does.
+                if (!m_Aiming || m_ShotCooldown > 0f || error > 30f) return;
+                m_Shooting.StartCharging();
+                if (m_Shooting.IsCharging) m_ChargeNoise = Gaussian() * m_P.ChargeError;
+                return;
+            }
+
+            // Charging: let go once the shell will reach and the gun is on target.
+            float goal = Mathf.Clamp01(m_AimCharge + m_ChargeNoise);
+            float tolerance = m_Aiming ? m_P.AimTolerance : m_P.AimTolerance * 2f;
+            if (m_Shooting.CurrentChargeRatio + .01f < goal || error > tolerance) return;
+            if (Telemetry)
+                Log($"fire charge={m_Shooting.CurrentChargeRatio:0.00} want={goal:0.00} err={error:0.0} " +
+                    $"dist={FlatDist(transform.position, m_SeenPos):0.0} los={m_HasLos}");
+            m_Shooting.StopCharging();
+            m_ShotCooldown = m_Shooting.m_ShotCooldown + .05f;
+            m_Hesitate = m_P.Hesitation * Random.Range(.5f, 1.5f);
+            // Shoot and scoot: cautious players duck back while reloading.
+            if (Random.value < (1f - m_P.Aggression) * .6f)
+            {
+                m_WantCover = true;
+                m_ThinkTimer = 0f;
+            }
+        }
+
+        private Vector3 ComputeAimPoint(out float charge)
+        {
+            Vector3 pos = transform.position;
+            // Skilled players also make up for their own reaction time.
+            Vector3 target = m_SeenPos + m_SeenVel * (m_P.Reaction * m_P.Lead);
+            Vector3 aim = target;
+            charge = 0f;
+            for (int i = 0; i < 2; i++)
+            {
+                float distance = FlatDist(pos, aim);
+                charge = ChargeFor(distance);
+                float stillToCharge = m_Shooting.IsCharging
+                    ? Mathf.Max(0f, charge - m_Shooting.CurrentChargeRatio) * m_Shooting.m_MaxChargeTime
+                    : charge * m_Shooting.m_MaxChargeTime + .1f;
+                aim = target + m_SeenVel * (m_P.Lead * (FlightTime(charge, distance) + stillToCharge));
+            }
+            return aim;
+        }
+
+        private void BuildRangeTable()
+        {
+            m_RangeTable = new float[21];
+            if (m_Shooting == null)
+            {
+                for (int i = 0; i < m_RangeTable.Length; i++) m_RangeTable[i] = 25f * i / 20f;
             }
             else
             {
-                m_SinceLastFleeingMove = 0;
+                float last = 0f;
+                for (int i = 0; i < m_RangeTable.Length; i++)
+                {
+                    last = Mathf.Max(last, FlatDist(transform.position, m_Shooting.GetProjectilePosition(i / 20f)));
+                    m_RangeTable[i] = last;
+                }
+                Transform firePoint = m_Shooting.m_FireTransform != null ? m_Shooting.m_FireTransform : transform;
+                m_HorizontalFactor = Mathf.Max(.2f, Flat(firePoint.forward).magnitude);
             }
-
-            if (m_SinceLastFleeingMove > 2.0f)
-            {
-                StartFleeing();
-            }
+            m_MaxRange = Mathf.Max(5f, m_RangeTable[m_RangeTable.Length - 1]);
+            if (Telemetry)
+                Log($"scene={gameObject.scene.name} range min={m_RangeTable[0]:0.0} max={m_MaxRange:0.0} " +
+                    $"difficulty speed={m_P.Speed:0.00}");
         }
 
-        private void StartFleeing()
+        private float ChargeFor(float distance)
         {
-            if (m_CurrentTarget == null) return;
-
-            // To flee, we need to pick a point away from our current target
-            m_FleeingLastPosition = transform.position;
-            m_SinceLastFleeingMove = 0.0f;
-
-            // Start by getting the vector *toward* our target...
-            var toTarget = (m_CurrentTarget.position - transform.position).normalized;
-
-            // then rotate that vector of a random angle between 90 and 180 degree, which will give us a random direction
-            // in the opposite direction
-            toTarget = Quaternion.AngleAxis(Random.Range(90.0f, 180.0f) * Mathf.Sign(Random.Range(-1.0f, 1.0f)),
-                Vector3.up) * toTarget;
-
-            // then we pick a point in that random direction at a random distance between 5 and 20 units
-            toTarget *= Random.Range(5.0f, 20.0f);
-
-            // Finally we compute a path toward that random point, which become our new current path.
-            // Both ends must lie on the NavMesh, otherwise CalculatePath fails and the bot stays put.
-            if (!NavMesh.SamplePosition(transform.position, out var origin, 3f, NavMesh.AllAreas) ||
-                !NavMesh.SamplePosition(transform.position + toTarget, out var destination, 6f, NavMesh.AllAreas))
-                return;
-
-            var fleePath = new NavMeshPath();
-            if (NavMesh.CalculatePath(origin.position, destination.position, NavMesh.AllAreas, fleePath) &&
-                fleePath.status == NavMeshPathStatus.PathComplete && fleePath.corners.Length >= 2)
+            var t = m_RangeTable;
+            if (distance <= t[0]) return 0f;
+            for (int i = 1; i < t.Length; i++)
             {
-                m_CurrentPath = fleePath;
-                m_CurrentState = State.Flee;
-                m_CurrentCorner = 1;
-
-                m_IsMoving = true;
+                if (t[i] < distance) continue;
+                float span = Mathf.Max(.001f, t[i] - t[i - 1]);
+                return (i - 1 + (distance - t[i - 1]) / span) / (t.Length - 1);
             }
+            return 1f;
         }
 
-        // Contrary to Update (which is called every new frame, so called a variable amount of time per second depending
-        // if the game is rendering fast or not), FixedUpdate is called at a given interval define in the Physic Setting
-        // of the project. This is where all physic code should be placed.
+        // Close targets are hit on the rising part of the arc, so the shell only flies as far as the target.
+        private float FlightTime(float charge, float distance)
+        {
+            if (m_Shooting == null) return .5f;
+            float idx = charge * (m_RangeTable.Length - 1);
+            int i = Mathf.Clamp(Mathf.FloorToInt(idx), 0, m_RangeTable.Length - 2);
+            float range = Mathf.Lerp(m_RangeTable[i], m_RangeTable[i + 1], idx - i);
+            float speed = Mathf.Lerp(m_Shooting.m_MinLaunchForce, m_Shooting.m_MaxLaunchForce, charge) * m_HorizontalFactor;
+            return Mathf.Min(range, distance) / Mathf.Max(.1f, speed);
+        }
+
         private void FixedUpdate()
         {
-            // If the tank doesn't have a path currently, exit early.
-            if (m_CurrentPath == null || m_CurrentPath.corners == null || m_CurrentPath.corners.Length == 0)
-                return;
-
             if (m_Movement == null) return;
             var rb = m_Movement.Rigidbody;
             if (rb == null) return;
+            float dt = Time.fixedDeltaTime;
 
-            //The point we will orient toward. By default, the current corner in our path
-            Vector3 orientTarget = m_CurrentPath.corners[Mathf.Min(m_CurrentCorner, m_CurrentPath.corners.Length - 1)];
+            // Throttle builds up and dies off like a player's thumb on the stick.
+            m_Throttle = Mathf.MoveTowards(m_Throttle, m_WantThrottle, dt * 4.5f);
+            Vector3 forward = Flat(rb.rotation * Vector3.forward).normalized;
 
-            //if we are not moving, we orient toward our target instead
-            if (!m_IsMoving)
+            if (m_WantFacing.sqrMagnitude > .01f)
             {
-                if (m_CurrentTarget != null)
-                    orientTarget = m_CurrentTarget.position;
+                float angle = Vector3.SignedAngle(forward, m_WantFacing, Vector3.up);
+                float step = m_Movement.m_TurnSpeed * m_P.Turn * dt;
+                angle = Mathf.Clamp(angle, -step, step);
+                if (Mathf.Abs(angle) > .0001f) rb.MoveRotation(rb.rotation * Quaternion.AngleAxis(angle, Vector3.up));
             }
-
-            Vector3 toOrientTarget = orientTarget - transform.position;
-            toOrientTarget.y = 0;
-            toOrientTarget.Normalize();
-
-            Vector3 forward = rb.rotation * Vector3.forward;
-
-            float orientDot = Vector3.Dot(forward, toOrientTarget);
-            float rotatingAngle = Vector3.SignedAngle(toOrientTarget, forward, Vector3.up);
-
-            //if we are moving we move in our forward direction by our max speed
-            float moveAmount = Mathf.Clamp01(orientDot) * (m_Movement.m_Speed * m_SpeedMultiplier) * Time.deltaTime;
-            if (m_IsMoving && moveAmount > 0.000001f)
-            {
-                rb.MovePosition(rb.position + forward * moveAmount);
-            }
-
-            //the actual rotation for that frame is the smallest between the max turning speed for that time frame and the
-            //angle itself. Multiplied by the sign of the angle to ensure we rotate in the right direction
-            rotatingAngle = Mathf.Sign(rotatingAngle) * Mathf.Min(Mathf.Abs(rotatingAngle), (m_Movement.m_TurnSpeed * m_TurnMultiplier) * Time.deltaTime);
-            
-            if(Mathf.Abs(rotatingAngle) > 0.000001f)
-                rb.MoveRotation(rb.rotation * Quaternion.AngleAxis(-rotatingAngle, Vector3.up));
-
-            // If we reached our current target, we increase our corner. We will never reach the target when the target
-            // is another tank as we stop before.
-            if (Vector3.Distance(rb.position, orientTarget) < 0.5f)
-            {
-                m_CurrentCorner += 1;
-            }
+            if (Mathf.Abs(m_Throttle) > .001f)
+                rb.MovePosition(rb.position + forward * (m_Throttle * m_Movement.m_Speed * m_P.Speed * dt));
         }
 
-        // Utility function which will add the length of all the sections of the given path to get its effective length
-        float GetPathLength(NavMeshPath path)
-        {
-            if (path == null || path.corners == null || path.corners.Length < 2) return 0f;
-            float dist = 0;
-            for (var i = 1; i < path.corners.Length; ++i)
-            {
-                dist += Vector3.Distance(path.corners[i-1], path.corners[i]);
-            }
+        // ---------------------------------------------------------------- helpers
 
-            return dist;
+        private bool PathTo(Vector3 destination, out NavMeshPath path, out float length)
+        {
+            path = new NavMeshPath();
+            length = 0f;
+            if (!NavMesh.SamplePosition(transform.position, out var start, 3f, NavMesh.AllAreas) ||
+                !NavMesh.CalculatePath(start.position, destination, NavMesh.AllAreas, path) ||
+                path.status != NavMeshPathStatus.PathComplete || path.corners.Length < 2)
+                return false;
+            for (int i = 1; i < path.corners.Length; i++) length += Vector3.Distance(path.corners[i - 1], path.corners[i]);
+            return true;
+        }
+
+        private static Vector3 Flat(Vector3 v) => new Vector3(v.x, 0f, v.z);
+
+        private static float FlatDist(Vector3 a, Vector3 b) => Flat(a - b).magnitude;
+
+        private static float Ratio(TankHealth health) =>
+            health != null ? health.CurrentHealth / Mathf.Max(1f, health.MaxHealth) : 1f;
+
+        private static float Gaussian()
+        {
+            float u = Mathf.Max(1e-5f, Random.value), v = Random.value;
+            return Mathf.Clamp(Mathf.Sqrt(-2f * Mathf.Log(u)) * Mathf.Cos(2f * Mathf.PI * v), -2.5f, 2.5f);
         }
     }
 }

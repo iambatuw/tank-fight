@@ -17,6 +17,19 @@ namespace Tanks.Complete
         [HideInInspector] public float m_ExplosionRadius = 5f;                // The maximum distance away from the explosion tanks can be and are still affected.
 
 
+        // Shells in flight, so computer players can see incoming fire and dodge it.
+        public static readonly List<ShellExplosion> Active = new List<ShellExplosion>();
+        public bool HasExploded => m_HasExploded;
+        public Rigidbody Body { get; private set; }
+
+        private void OnEnable()
+        {
+            Body = GetComponent<Rigidbody>();
+            Active.Add(this);
+        }
+
+        private void OnDisable() => Active.Remove(this);
+
         private void Start ()
         {
             // If it isn't destroyed by then, destroy the shell after its lifetime.

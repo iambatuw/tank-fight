@@ -392,11 +392,34 @@ public static class TankDuelData
 
     public static int SelectRandomArena(int arenaCount)
     {
+        // Shuffle bag: every arena comes up once, in a fresh random order, before any arena repeats,
+        // and a new bag never opens with the arena that was just played. The bag survives restarts.
         if (arenaCount < 1) throw new ArgumentOutOfRangeException(nameof(arenaCount));
         int previous = PlayerPrefs.GetInt("TankDuel.LastRandomArena", -1);
-        bool excludePrevious = arenaCount > 1 && previous >= 0 && previous < arenaCount;
-        int chosen = UnityEngine.Random.Range(0, excludePrevious ? arenaCount - 1 : arenaCount);
-        if (excludePrevious && chosen >= previous) chosen++;
+        var bag = new List<int>();
+        foreach (var part in PlayerPrefs.GetString("TankDuel.ArenaBag", "").Split(','))
+        {
+            if (int.TryParse(part, out int index) && index >= 0 && index < arenaCount && !bag.Contains(index))
+                bag.Add(index);
+        }
+        bag.Remove(previous);
+        if (bag.Count == 0)
+        {
+            for (int i = 0; i < arenaCount; i++) bag.Add(i);
+            for (int i = bag.Count - 1; i > 0; i--)
+            {
+                int j = UnityEngine.Random.Range(0, i + 1);
+                (bag[i], bag[j]) = (bag[j], bag[i]);
+            }
+            if (bag.Count > 1 && bag[0] == previous)
+            {
+                int j = UnityEngine.Random.Range(1, bag.Count);
+                (bag[0], bag[j]) = (bag[j], bag[0]);
+            }
+        }
+        int chosen = bag[0];
+        bag.RemoveAt(0);
+        PlayerPrefs.SetString("TankDuel.ArenaBag", string.Join(",", bag));
         PlayerPrefs.SetInt("TankDuel.LastRandomArena", chosen);
         SelectedArena = chosen;
         return chosen;
