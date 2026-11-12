@@ -1,5 +1,13 @@
 # Kontrol sonuçları — 13 Kasım 2026
 
+## 1.8.1 kontrolleri
+
+- Zor seviye yumuşatıldı: tepki 0,15 → 0,20 sn, nişan titremesi 2° → 3,2°, önden atış becerisi %95 → %65, kaçınma olasılığı %75 → %50. Orta seviyede önden atış %70 → %45.
+- Önden atış her atışta yeniden tahmin ediliyor (%50–120 arası); atışların %20'si doğrudan tankın olduğu yere. Rakibin hızı daha uzun sürede (0,45 sn) okunuyor, ani yön değiştirmeler botu şaşırtıyor.
+- Kaçınma iki yönü de değerlendiriyor ve patlamadan, atış hattından uzaklaşan yönü seçiyor; işe yaramayacak kaçış denenmiyor. Merminin düşeceği yere doğru sürmüyor, atış noktası seçerken o bölgeden kaçınıyor.
+- Zor seviyede 100 saniyelik bilgisayara karşı bilgisayar testinde 6 raunt için 42 atış gerekti (1.8.0'da 20); Player.log'da hata yok.
+- Windows 64 bit derlemesi başarılı: 0 hata, 185,7 MB.
+
 ## 1.8.0 kontrolleri
 
 - Bilgisayar rakibi baştan yazıldı: tepki gecikmeli algılama, gerçek görüş hattı kontrolü, rakibin etrafında dönerek atış noktası seçme, hareketli hedefin önüne atış, mesafeye göre doldurma, gelen mermiden ve doldurulan atıştan kaçma, can azalınca ya da yeniden doldururken siper alma, sıkışınca geri çıkma.

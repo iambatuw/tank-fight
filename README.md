@@ -64,8 +64,8 @@ Bot, sabit bir taret gibi değil bir oyuncu gibi oynar:
 
 - **Görme:** Rakibi kısa bir tepki gecikmesiyle görür; duvarların arkasına ateş etmez, ancak gerçekten açık bir atış hattı varsa nişan alır.
 - **Pozisyon:** Sevdiği mesafede bir atış noktası seçer ve rakibin etrafında döner; yerinde durmaz, kısa mesafede tankı çevirmek yerine geri vites yapar.
-- **Nişan:** Eli hafifçe titrer, hareket eden rakibin önüne atış yapar ve atışı yalnızca mesafe için gereken kadar doldurur.
-- **Kaçınma:** Rakip ona nişan alıp atışı doldururken ya da mermi üstüne gelirken ileri veya geri ani bir hamleyle kaçar.
+- **Nişan:** Eli hafifçe titrer, atışı yalnızca mesafe için gereken kadar doldurur. Hareket eden rakibin önüne atmaya çalışır ama insan gibi yanılır: bazen fazla ya da az önden atar, bazen doğrudan tankın olduğu yere sıkar; ani yön değiştirmeler onu şaşırtır.
+- **Kaçınma:** Rakip ona nişan alıp atışı doldururken ya da mermi üstüne gelirken ileri veya geri, patlamadan ve atış hattından uzaklaşan yöne kaçar. Kaçmasa bile merminin düşeceği yere doğru sürmez.
 - **Siper:** Canı azalıp alışverişi kaybettiğinde ya da yeniden doldururken bir engelin arkasına çekilir, silahı hazır olunca yeniden çıkar.
 - **Sıkışma:** Bir yere takılırsa geri çıkıp yeni yol bulur.
 
@@ -73,7 +73,7 @@ Bot, sabit bir taret gibi değil bir oyuncu gibi oynar:
 | --- | --- | --- | --- |
 | Kolay | Yavaş, sık tereddüt | Geniş titreme, hareketli hedefe zayıf | Nadiren |
 | Orta | Normal | Orta | Bazen |
-| Zor | Hızlı | Hassas, hareketli hedefin önüne atar | Çoğu zaman |
+| Zor | Hızlı | Hassas, hareketli hedefin önüne çoğu zaman doğru atar | Sık sık |
 
 Raunt başında iki taraf da ekrandaki geri sayımı bekler. Geri sayım bittiğinde kontroller birlikte açılır; bot hemen pozisyon almaya başlar ve ilk atışı kısa bir gecikmeden sonra yapar.
 

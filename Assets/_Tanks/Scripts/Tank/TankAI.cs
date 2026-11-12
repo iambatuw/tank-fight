@@ -44,12 +44,12 @@ namespace Tanks.Complete
             new Profile { Reaction = .42f, AimWobble = 9f, AimTolerance = 8f, Lead = .3f, ChargeError = .12f,
                 DodgeChance = .15f, DodgeReaction = .45f, Think = .75f, Speed = .85f, Turn = .85f, Hesitation = .9f,
                 Aggression = .35f, CoverHealth = .2f },
-            new Profile { Reaction = .26f, AimWobble = 4.5f, AimTolerance = 5f, Lead = .7f, ChargeError = .06f,
-                DodgeChance = .45f, DodgeReaction = .28f, Think = .5f, Speed = 1f, Turn = 1f, Hesitation = .4f,
+            new Profile { Reaction = .28f, AimWobble = 5.5f, AimTolerance = 5.5f, Lead = .45f, ChargeError = .07f,
+                DodgeChance = .3f, DodgeReaction = .3f, Think = .5f, Speed = 1f, Turn = 1f, Hesitation = .5f,
                 Aggression = .55f, CoverHealth = .32f },
-            new Profile { Reaction = .15f, AimWobble = 2f, AimTolerance = 3f, Lead = .95f, ChargeError = .03f,
-                DodgeChance = .75f, DodgeReaction = .16f, Think = .32f, Speed = 1.12f, Turn = 1.2f, Hesitation = .15f,
-                Aggression = .72f, CoverHealth = .4f },
+            new Profile { Reaction = .2f, AimWobble = 3.2f, AimTolerance = 4.5f, Lead = .65f, ChargeError = .05f,
+                DodgeChance = .5f, DodgeReaction = .22f, Think = .38f, Speed = 1.05f, Turn = 1.1f, Hesitation = .35f,
+                Aggression = .65f, CoverHealth = .38f },
         };
 
         private const float PowerUpSearchRadius = 18f;
@@ -88,7 +88,10 @@ namespace Tanks.Complete
         private float m_Throttle, m_WantThrottle;
         private Vector3 m_WantFacing;
         private float m_DodgeTimer, m_DodgeThrottle, m_PendingDodge = -1f;
-        private Vector3 m_PendingDodgeFrom;
+        private Vector3 m_PendingDodgeFrom, m_PendingDodgeLine;
+        private Vector3 m_DangerPoint;           // where an incoming shell will land
+        private float m_DangerUntil = -1f;
+        private float m_ShotLead = .5f;          // this shot's guess at how far to lead, rolled per shot
         private float m_UnstuckTimer, m_UnstuckThrottle, m_UnstuckTurn;
         private Vector3 m_StuckAnchor;
         private float m_StuckTimer;
@@ -120,7 +123,11 @@ namespace Tanks.Complete
             ApplyDifficulty(TankDuelData.AIDifficulty);
         }
 
-        public void ApplyDifficulty(int difficulty) => m_P = Profiles[Mathf.Clamp(difficulty, 0, Profiles.Length - 1)];
+        public void ApplyDifficulty(int difficulty)
+        {
+            m_P = Profiles[Mathf.Clamp(difficulty, 0, Profiles.Length - 1)];
+            m_ShotLead = m_P.Lead;
+        }
 
         public void TurnOff() => enabled = false;
 
@@ -205,10 +212,10 @@ namespace Tanks.Complete
             float now = Time.time;
             Vector3 p = m_Target.position;
             m_TargetTrail.Add(new Vector4(p.x, p.y, p.z, now));
-            while (m_TargetTrail.Count > 2 && now - m_TargetTrail[1].w > m_P.Reaction + .6f)
+            while (m_TargetTrail.Count > 2 && now - m_TargetTrail[1].w > m_P.Reaction + .8f)
                 m_TargetTrail.RemoveAt(0);
             m_SeenPos = TrailAt(now - m_P.Reaction);
-            m_SeenVel = Flat(m_SeenPos - TrailAt(now - m_P.Reaction - .25f)) / .25f;
+            m_SeenVel = Flat(m_SeenPos - TrailAt(now - m_P.Reaction - .45f)) / .45f;
 
             m_LosTimer -= dt;
             if (m_LosTimer <= 0f)
@@ -278,7 +285,7 @@ namespace Tanks.Complete
             if (m_PendingDodge >= 0f)
             {
                 m_PendingDodge -= dt;
-                if (m_PendingDodge < 0f) BeginDodge(m_PendingDodgeFrom);
+                if (m_PendingDodge < 0f) BeginDodge(m_PendingDodgeFrom, m_PendingDodgeLine);
             }
 
             // The enemy is holding fire with its gun on us: a sharp player jinks before the shot leaves.
@@ -291,7 +298,8 @@ namespace Tanks.Complete
                     if (toMe.magnitude < m_MaxRange * 1.1f && Vector3.Angle(Flat(m_Target.forward), toMe) < 14f)
                     {
                         m_EnemyChargeJudged = true;
-                        if (Random.value < m_P.DodgeChance * .7f) ScheduleDodge(transform.position);
+                        if (Random.value < m_P.DodgeChance * .7f)
+                            ScheduleDodge(transform.position, Flat(m_Target.forward).normalized);
                     }
                 }
             }
@@ -324,29 +332,49 @@ namespace Tanks.Complete
                 Vector3 landing = p + Flat(v) * t;
                 if (t > 1.5f || FlatDist(landing, transform.position) > shell.m_ExplosionRadius * .8f + 1f) continue;
                 m_JudgedShells.Add(shell);
-                if (Random.value < m_P.DodgeChance) ScheduleDodge(landing);
+                // Even without dodging, don't drive into the blast.
+                m_DangerPoint = landing;
+                m_DangerUntil = Time.time + t + .3f;
+                if (Random.value < m_P.DodgeChance) ScheduleDodge(landing, Flat(v).normalized);
             }
         }
 
-        private void ScheduleDodge(Vector3 threat)
+        private void ScheduleDodge(Vector3 threat, Vector3 line)
         {
             if (m_DodgeTimer > 0f || m_PendingDodge >= 0f) return;
             m_PendingDodgeFrom = threat;
+            m_PendingDodgeLine = line;
             m_PendingDodge = m_P.DodgeReaction * Random.Range(.8f, 1.25f);
         }
 
-        private void BeginDodge(Vector3 threat)
+        private void BeginDodge(Vector3 threat, Vector3 line)
         {
-            // A tank can only drive along its hull, so the dodge is a burst forwards or backwards,
-            // away from the danger when that is clear, and the other way when a wall is in the way.
+            // A tank can only drive along its hull, so the dodge is a burst forwards or backwards.
+            // Both ends are scored: the one further from the blast and off the shot's line wins,
+            // as long as no wall is in the way. A dodge that would not get clear is not attempted.
+            Vector3 pos = transform.position;
             Vector3 f = Flat(transform.forward).normalized;
-            Vector3 away = Flat(transform.position - threat);
-            float sign = away.sqrMagnitude > .25f ? Mathf.Sign(Vector3.Dot(f, away)) : (Random.value < .5f ? 1f : -1f);
-            if (!DriveClear(f * sign, 4f)) sign = -sign;
-            if (!DriveClear(f * sign, 4f)) return;
-            m_DodgeThrottle = sign;
+            float reach = m_Movement != null ? m_Movement.m_Speed * m_P.Speed * .6f : 4f;
+            float bestSign = 0f, bestScore = float.MinValue;
+            foreach (float sign in new[] { 1f, -1f })
+            {
+                if (!DriveClear(f * sign, reach)) continue;
+                Vector3 end = pos + f * (sign * reach);
+                float score = FlatDist(end, threat);
+                if (line.sqrMagnitude > .01f)
+                {
+                    Vector3 off = Flat(end - threat);
+                    score += (off - line * Vector3.Dot(off, line)).magnitude * 1.5f;   // sideways off the line
+                }
+                score += Random.Range(0f, .3f);
+                if (score <= bestScore) continue;
+                bestScore = score;
+                bestSign = sign;
+            }
+            if (bestSign == 0f || bestScore < (line.sqrMagnitude > .01f ? 2f : 3f)) return;
+            m_DodgeThrottle = bestSign;
             m_DodgeTimer = Random.Range(.55f, .9f);
-            if (Telemetry) Log($"dodge {(sign > 0 ? "forward" : "back")}");
+            if (Telemetry) Log($"dodge {(bestSign > 0 ? "forward" : "back")}");
         }
 
         private bool DriveClear(Vector3 dir, float distance)
@@ -429,6 +457,7 @@ namespace Tanks.Complete
                     if (sees) score -= 12f;
                     if (angle != 0f && Mathf.Sign(angle) == m_OrbitSign) score -= 3f;   // keep circling one way
                     if (length < 1.5f) score += 4f;                                     // don't sit still
+                    if (Time.time < m_DangerUntil && FlatDist(hit.position, m_DangerPoint) < 5f) score += 15f;
                     score += Random.Range(0f, 2.5f);
                     if (score >= bestScore) continue;
                     bestScore = score;
@@ -592,6 +621,13 @@ namespace Tanks.Complete
                     m_WantThrottle = dot > .75f ? 1f : Mathf.Clamp01((dot - .1f) / .65f);
                 }
                 if (remaining < 2.5f) m_WantThrottle *= Mathf.Lerp(.35f, 1f, remaining / 2.5f);
+                // A shell is about to land on the route: wait for it instead of driving into it.
+                if (Time.time < m_DangerUntil)
+                {
+                    Vector3 ahead = pos + m_WantFacing * (Mathf.Sign(m_WantThrottle) * 3f);
+                    if (FlatDist(ahead, m_DangerPoint) < 4.5f && FlatDist(ahead, m_DangerPoint) < FlatDist(pos, m_DangerPoint))
+                        m_WantThrottle = 0f;
+                }
                 return;
             }
 
@@ -627,7 +663,12 @@ namespace Tanks.Complete
                 // Press the trigger while still swinging onto the target, like a player does.
                 if (!m_Aiming || m_ShotCooldown > 0f || error > 30f) return;
                 m_Shooting.StartCharging();
-                if (m_Shooting.IsCharging) m_ChargeNoise = Gaussian() * m_P.ChargeError;
+                if (m_Shooting.IsCharging)
+                {
+                    m_ChargeNoise = Gaussian() * m_P.ChargeError;
+                    // People misjudge how far to lead, and now and then just shoot where the tank is.
+                    m_ShotLead = Random.value < .2f ? 0f : m_P.Lead * Random.Range(.5f, 1.2f);
+                }
                 return;
             }
 
@@ -641,6 +682,7 @@ namespace Tanks.Complete
             m_Shooting.StopCharging();
             m_ShotCooldown = m_Shooting.m_ShotCooldown + .05f;
             m_Hesitate = m_P.Hesitation * Random.Range(.5f, 1.5f);
+            m_ShotLead = Random.value < .2f ? 0f : m_P.Lead * Random.Range(.5f, 1.2f);
             // Shoot and scoot: cautious players duck back while reloading.
             if (Random.value < (1f - m_P.Aggression) * .6f)
             {
@@ -653,7 +695,7 @@ namespace Tanks.Complete
         {
             Vector3 pos = transform.position;
             // Skilled players also make up for their own reaction time.
-            Vector3 target = m_SeenPos + m_SeenVel * (m_P.Reaction * m_P.Lead);
+            Vector3 target = m_SeenPos + m_SeenVel * (m_P.Reaction * m_ShotLead);
             Vector3 aim = target;
             charge = 0f;
             for (int i = 0; i < 2; i++)
@@ -663,7 +705,7 @@ namespace Tanks.Complete
                 float stillToCharge = m_Shooting.IsCharging
                     ? Mathf.Max(0f, charge - m_Shooting.CurrentChargeRatio) * m_Shooting.m_MaxChargeTime
                     : charge * m_Shooting.m_MaxChargeTime + .1f;
-                aim = target + m_SeenVel * (m_P.Lead * (FlightTime(charge, distance) + stillToCharge));
+                aim = target + m_SeenVel * (m_ShotLead * (FlightTime(charge, distance) + stillToCharge));
             }
             return aim;
         }
