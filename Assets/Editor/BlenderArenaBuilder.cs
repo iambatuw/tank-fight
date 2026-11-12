@@ -33,7 +33,7 @@ public static class BlenderArenaBuilder
 
     private static readonly Arena[] Arenas =
     {
-        new Arena { Scene = "Duel_Canyon", Model = "Canyon", Background = new Color(0.89f, 0.67f, 0.42f), Sun = new Color(1f, 0.91f, 0.78f) },
+        new Arena { Scene = "Duel_Canyon", Model = "Canyon", Background = new Color(0.85f, 0.60f, 0.37f), Sun = new Color(1f, 0.91f, 0.78f) },
         new Arena { Scene = "Duel_Harbor", Model = "Harbor", Background = new Color(0.16f, 0.43f, 0.50f), Sun = Color.white },
     };
 
@@ -52,7 +52,6 @@ public static class BlenderArenaBuilder
         if (!File.Exists(Request) || EditorApplication.isPlayingOrWillChangePlaymode || EditorApplication.isCompiling)
             return;
         File.Delete(Request);
-        EditorApplication.update -= CheckRequest;
         BuildAll();
     }
 
@@ -64,19 +63,23 @@ public static class BlenderArenaBuilder
         {
             if (EditorApplication.isPlayingOrWillChangePlaymode)
                 throw new InvalidOperationException("Stop Play before building arenas.");
+            // With unsaved work open, arenas are opened beside it (additively) and closed again,
+            // so the user's scene is never replaced or discarded.
+            bool additive = false;
             for (int i = 0; i < SceneManager.sceneCount; i++)
-                if (SceneManager.GetSceneAt(i).isDirty)
-                    throw new InvalidOperationException("Save the open scene first.");
-            string originalPath = SceneManager.GetActiveScene().path;
+                if (SceneManager.GetSceneAt(i).isDirty) additive = true;
+            var originalActive = SceneManager.GetActiveScene();
+            string originalPath = additive ? null : originalActive.path;
             Directory.CreateDirectory(MaterialFolder);
             AssetDatabase.Refresh();
             try
             {
-                foreach (var arena in Arenas) log.Add(Build(arena));
+                foreach (var arena in Arenas) log.Add(Build(arena, additive));
                 AssetDatabase.SaveAssets();
             }
             finally
             {
+                if (additive && originalActive.IsValid()) SceneManager.SetActiveScene(originalActive);
                 if (!string.IsNullOrEmpty(originalPath)) EditorSceneManager.OpenScene(originalPath);
             }
             log.Add("OK");
@@ -90,13 +93,24 @@ public static class BlenderArenaBuilder
         File.WriteAllLines(ResultFile, log);
     }
 
-    private static string Build(Arena arena)
+    private static T InScene<T>(Scene scene) where T : Component =>
+        scene.GetRootGameObjects().SelectMany(r => r.GetComponentsInChildren<T>(true)).FirstOrDefault();
+
+    private static string Build(Arena arena, bool additive)
     {
         string modelPath = Folder + arena.Model + ".fbx";
         var model = AssetDatabase.LoadAssetAtPath<GameObject>(modelPath);
         if (model == null) throw new InvalidOperationException("Missing model: " + modelPath);
 
-        var scene = EditorSceneManager.OpenScene(DuelArenaCatalog.ScenePath(arena.Scene));
+        string scenePath = DuelArenaCatalog.ScenePath(arena.Scene);
+        var scene = EditorSceneManager.OpenScene(scenePath, additive ? OpenSceneMode.Additive : OpenSceneMode.Single);
+        SceneManager.SetActiveScene(scene);
+        try { return BuildInScene(arena, model, scene); }
+        finally { if (additive) EditorSceneManager.CloseScene(scene, true); }
+    }
+
+    private static string BuildInScene(Arena arena, GameObject model, Scene scene)
+    {
         foreach (var root in scene.GetRootGameObjects())
             if (root.name == "Designed Arena" || root.name.StartsWith("Level") || root.name == "EnhancedEnvironment")
                 UnityEngine.Object.DestroyImmediate(root);
@@ -153,7 +167,7 @@ public static class BlenderArenaBuilder
         }
         if (colliders == 0) throw new InvalidOperationException(arena.Model + ": no COL_ objects found.");
 
-        var manager = UnityEngine.Object.FindFirstObjectByType<GameManager>();
+        var manager = InScene<GameManager>(scene);
         if (manager == null) throw new InvalidOperationException(arena.Scene + ": missing GameManager.");
         for (int i = 0; i < manager.m_SpawnPoints.Length && i < Starts.Length; i++)
         {
@@ -161,12 +175,12 @@ public static class BlenderArenaBuilder
             spawn.position = Starts[i];
             spawn.rotation = Quaternion.LookRotation(-Starts[i].normalized, Vector3.up);
         }
-        var spawners = UnityEngine.Object.FindObjectsByType<PowerUpSpawner>(FindObjectsInactive.Include)
+        var spawners = scene.GetRootGameObjects().SelectMany(r => r.GetComponentsInChildren<PowerUpSpawner>(true))
             .OrderBy(s => s.name).ThenBy(s => s.transform.GetSiblingIndex()).ToArray();
         if (spawners.Length != 4) throw new InvalidOperationException("Expected four power-up spawners.");
         for (int i = 0; i < spawners.Length; i++) spawners[i].transform.position = Supplies[i];
 
-        var light = UnityEngine.Object.FindFirstObjectByType<Light>();
+        var light = InScene<Light>(scene);
         if (light != null)
         {
             light.transform.rotation = Quaternion.Euler(52, -35, 0);
@@ -177,7 +191,8 @@ public static class BlenderArenaBuilder
         RenderSettings.ambientMode = AmbientMode.Flat;
         RenderSettings.ambientLight = new Color(0.42f, 0.45f, 0.48f);
         RenderSettings.fog = false;
-        var camera = Camera.main;
+        var camera = scene.GetRootGameObjects().SelectMany(r => r.GetComponentsInChildren<Camera>(true))
+            .FirstOrDefault(c => c.CompareTag("MainCamera"));
         if (camera != null)
         {
             camera.clearFlags = CameraClearFlags.SolidColor;
@@ -197,12 +212,22 @@ public static class BlenderArenaBuilder
 
         Validate();
         EditorSceneManager.SaveScene(scene);
-        RenderPreview(camera, "UI-Preview/arena-" + arena.Model.ToLowerInvariant() + ".png");
+        RenderPreview(camera, "UI-Preview/arena-" + arena.Model.ToLowerInvariant() + ".png", Starts[0], Starts[1]);
+        // Close-ups with the solo follow camera at the arena edges, for checking the surroundings.
+        foreach (var spot in EdgeSpots)
+            RenderPreview(camera, $"Temp/ArenaChecks/{arena.Model}-{spot.Key}.png", spot.Value);
         return $"{arena.Scene}: {visuals} meshes, {colliders} colliders, routes OK";
     }
 
     // Renders the arena from the two-player match framing so the README preview matches the game.
-    private static void RenderPreview(Camera camera, string file)
+    private static readonly Dictionary<string, Vector3> EdgeSpots = new Dictionary<string, Vector3>
+    {
+        { "SW", new Vector3(-30, 0, -24) }, { "SE", new Vector3(30, 0, -24) }, { "NW", new Vector3(-30, 0, 24) },
+        { "NE", new Vector3(30, 0, 24) }, { "S", new Vector3(0, 0, -25) }, { "N", new Vector3(0, 0, 25) },
+        { "W", new Vector3(-31, 0, 0) }, { "E", new Vector3(31, 0, 0) },
+    };
+
+    private static void RenderPreview(Camera camera, string file, params Vector3[] points)
     {
         if (camera == null) return;
         var position = camera.transform.position;
@@ -210,9 +235,13 @@ public static class BlenderArenaBuilder
         float size = camera.orthographicSize;
         bool ortho = camera.orthographic;
         var targetsRoot = new GameObject("Preview targets");
+        // Lights in other open scenes (e.g. an unsaved scene beside the arena) would double the lighting.
+        var foreignLights = UnityEngine.Object.FindObjectsByType<Light>(FindObjectsInactive.Exclude)
+            .Where(l => l.enabled && l.gameObject.scene != camera.gameObject.scene).ToArray();
+        foreach (var l in foreignLights) l.enabled = false;
         try
         {
-            var targets = new[] { Starts[0], Starts[1] }.Select(p =>
+            var targets = points.Select(p =>
             {
                 var t = new GameObject("target").transform;
                 t.SetParent(targetsRoot.transform);
@@ -220,7 +249,7 @@ public static class BlenderArenaBuilder
                 return t;
             }).ToArray();
             camera.aspect = 16f / 9f;
-            new DuelCameraFraming().Update(camera, targets, false, 0f, true);
+            new DuelCameraFraming().Update(camera, targets, targets.Length == 1, 0f, true);
             var rt = new RenderTexture(1920, 1080, 24, RenderTextureFormat.ARGB32) { antiAliasing = 4 };
             var previous = camera.targetTexture;
             camera.targetTexture = rt;
@@ -241,6 +270,7 @@ public static class BlenderArenaBuilder
         finally
         {
             UnityEngine.Object.DestroyImmediate(targetsRoot);
+            foreach (var l in foreignLights) if (l != null) l.enabled = true;
             camera.ResetAspect();
             camera.transform.SetPositionAndRotation(position, rotation);
             camera.orthographicSize = size;

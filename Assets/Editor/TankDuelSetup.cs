@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using Tanks.Complete;
 using TMPro;
 using UnityEditor;
@@ -33,9 +34,30 @@ public static class TankDuelSetup
             EditorApplication.isCompiling || EditorApplication.isUpdating) return;
         File.Delete(BuildRequest);
         string outcome;
-        try { outcome = BuildWindows(false); }
+        try { outcome = PrepareOpenScenesForBuild() ?? BuildWindows(false); }
         catch (Exception e) { outcome = "ERROR: " + e.Message; }
         File.WriteAllText(BuildResultFile, outcome);
+    }
+
+    // A build started from the editor asks whether to save modified scenes and cancels on "Don't Save".
+    // An untouched default "Untitled" scene (only Main Camera + Directional Light) holds no work, so it
+    // is replaced with the first arena; anything else is left alone and reported instead.
+    private static string PrepareOpenScenesForBuild()
+    {
+        for (int i = 0; i < SceneManager.sceneCount; i++)
+        {
+            var scene = SceneManager.GetSceneAt(i);
+            if (!scene.isDirty) continue;
+            bool defaultUntitled = string.IsNullOrEmpty(scene.path) && scene.GetRootGameObjects().All(r =>
+                (r.name == "Main Camera" || r.name == "Directional Light") && r.transform.childCount == 0);
+            if (!defaultUntitled)
+                return "ERROR: Unsaved changes in scene '" + scene.name + "'. Save it, then request the build again.";
+        }
+        bool anyDirty = false;
+        for (int i = 0; i < SceneManager.sceneCount; i++) anyDirty |= SceneManager.GetSceneAt(i).isDirty;
+        if (anyDirty)
+            EditorSceneManager.OpenScene(DuelArenaCatalog.ScenePath(DuelArenaCatalog.Scenes[0]), OpenSceneMode.Single);
+        return null;
     }
 
     private static void OnPlayModeChanged(PlayModeStateChange state)

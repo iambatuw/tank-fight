@@ -1,5 +1,14 @@
 # Kontrol sonuçları — 13 Kasım 2026
 
+## 1.7.1 kontrolleri
+
+- Kanyon'un kenarlarında görülen koyu boşluklar ve güneydeki çizgili titreme (üst üste binen iki yüzey) giderildi. Çevre artık iç içe dört katmandan oluşan tek parça bir kanyon duvarı ve ona kesintisiz bağlanan bir düzlük; ayrı kutu ve bloklar kullanılmıyor.
+- Duvar yüksekliği güneyden (3 birim) kuzeye (9,5 birim) yumuşakça artıyor; köşelerde basamak yok. Görünen duvar ile çarpışma duvarı aynı çizgide.
+- Kanyon yerleşimi yeniden tasarlandı: yarık mesa, kaya sütunları, L biçimli kaya setleri, yan mesalar, kuru ağaçlar, maden arabaları; tüm engeller merkeze göre simetrik.
+- Unity'de oyunun tek oyunculu takip kamerasıyla sekiz kenar/köşe noktası görüntülendi (Kanyon ve Liman): boşluk, titreşen yüzey veya taşma görülmedi.
+- 33 çarpışma kutusu kuruldu; dört başlangıç alanı engelsiz, başlangıç ve güçlendirme noktaları arasındaki 28 yolun tamamı bağlı.
+- Windows 64 bit derlemesi başarılı: 0 hata, 181,9 MB. EXE 15 saniyelik açılış kontrolünde çalışır kaldı; Player.log'da hata bulunmadı.
+
 ## 1.7.0 kontrolleri
 
 - Kanyon ve Liman Blender'da sıfırdan tasarlandı ve FBX olarak aktarıldı (Kanyon ≈15 bin, Liman ≈20 bin üçgen; malzeme başına birleştirilmiş meshler).
