@@ -1,4 +1,13 @@
-# Kontrol sonuçları — 29 Ekim 2026
+# Kontrol sonuçları — 13 Kasım 2026
+
+## 1.7.0 kontrolleri
+
+- Kanyon ve Liman Blender'da sıfırdan tasarlandı ve FBX olarak aktarıldı (Kanyon ≈15 bin, Liman ≈20 bin üçgen; malzeme başına birleştirilmiş meshler).
+- Blender'daki dört eksen/ölçek işareti Unity'de beklenen konumlarda bulundu (0,3 birim tolerans).
+- Kanyon'da 36, Liman'da 24 çarpışma kutusu kuruldu. Dört başlangıç alanı engelsiz; başlangıç ve güçlendirme noktaları arasındaki 28 yolun tamamı her iki haritada bağlı.
+- İki harita, iki oyunculu maç kadrajıyla Unity'de 1920 × 1080 olarak görüntülendi; önizlemeler güncellendi.
+- Depodaki altı sahne dosyasının CRLF dönüşümüyle bozulduğu bulundu; sahneler artık ikili olarak saklanıyor ve çalışma kopyasıyla birebir aynı.
+- Windows 64 bit derlemesi başarılı: 0 hata, 181 MB. Oluşturulan EXE 15 saniyelik açılış kontrolünde çalışır kaldı; Player.log'da hata bulunmadı. Bu kontrol görsel oyun testi değildir.
 
 ## 1.6.0 kontrolleri
 

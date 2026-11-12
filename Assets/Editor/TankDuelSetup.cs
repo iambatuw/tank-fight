@@ -17,9 +17,25 @@ public static class TankDuelSetup
     private const string TargetFolder = "Assets/Scenes/";
     private static readonly string[] Arenas = { "Jungle", "Desert", "Moon" };
 
+    private const string BuildRequest = "Temp/BuildWindows.request";
+    private const string BuildResultFile = "Temp/BuildWindows.result";
+
     static TankDuelSetup()
     {
         EditorApplication.playModeStateChanged += OnPlayModeChanged;
+        EditorApplication.update += CheckBuildRequest;
+    }
+
+    // Lets tools outside the editor request a Windows build; the outcome is written to Temp.
+    private static void CheckBuildRequest()
+    {
+        if (!File.Exists(BuildRequest) || EditorApplication.isPlayingOrWillChangePlaymode ||
+            EditorApplication.isCompiling || EditorApplication.isUpdating) return;
+        File.Delete(BuildRequest);
+        string outcome;
+        try { outcome = BuildWindows(false); }
+        catch (Exception e) { outcome = "ERROR: " + e.Message; }
+        File.WriteAllText(BuildResultFile, outcome);
     }
 
     private static void OnPlayModeChanged(PlayModeStateChange state)
@@ -149,12 +165,22 @@ public static class TankDuelSetup
     }
 
     [MenuItem("Tank Duel/Build Windows EXE")]
-    public static void BuildWindowsExe()
+    public static void BuildWindowsExe() => BuildWindows(true);
+
+    // Command line: Unity.exe -batchmode -quit -projectPath <project> -executeMethod TankDuelSetup.BuildWindowsBatch
+    public static void BuildWindowsBatch()
+    {
+        string outcome = BuildWindows(false);
+        File.WriteAllText(BuildResultFile, outcome);
+        EditorApplication.Exit(outcome.StartsWith("Succeeded") ? 0 : 1);
+    }
+
+    private static string BuildWindows(bool reveal)
     {
         if (EditorApplication.isPlaying)
         {
             Debug.LogError("Tank Duel: Please stop Play mode before building Windows EXE.");
-            return;
+            return "ERROR: Play mode is active.";
         }
 
         string buildFolder = Path.Combine(Directory.GetCurrentDirectory(), "Build");
@@ -176,12 +202,14 @@ public static class TankDuelSetup
         if (report.summary.result == BuildResult.Succeeded)
         {
             Debug.Log($"Tank Duel: Build succeeded! Size: {report.summary.totalSize / (1024 * 1024)} MB. Path: {exePath}");
-            EditorUtility.RevealInFinder(exePath);
+            if (reveal) EditorUtility.RevealInFinder(exePath);
         }
         else
         {
             Debug.LogError($"Tank Duel: Build failed: {report.summary.result}");
         }
+        return $"{report.summary.result}; errors={report.summary.totalErrors}; warnings={report.summary.totalWarnings}; " +
+               $"size={report.summary.totalSize / (1024f * 1024f):0.00} MB";
     }
 
     [MenuItem("Tank Duel/Set Up Playable Arenas")]
