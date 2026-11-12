@@ -32,6 +32,23 @@ def pair(fn):
     fn(1); fn(-1)
 
 
+ROCK = [RUST, ORANGE]          # banded colours for loose rock
+CLIFF = [BASE, RUST, ORANGE, PALE]
+
+
+def stack(name, x, y, w, d, h, seed, layers=3, z0=0.0, rz=0.0, top=None):
+    """Mesa / butte: chunky flat-topped rock slabs stacked and slightly offset, each closed and faceted."""
+    rr = random.Random(seed); z = z0
+    for k in range(layers):
+        lh = h / layers * rr.uniform(1.0, 1.2)
+        s_ = 1 - k * 0.14
+        boulder(f"{name}_L{k}", x + rr.uniform(-.25, .25), y + rr.uniform(-.25, .25), w * s_, d * s_, lh + 0.25,
+                CLIFF, seed * 11 + k, z0=z, subdiv=2, rough=0.18, flat_top=0.45, cuts=5, band=1.15,
+                top_mat=(top if k == layers - 1 else None), rz=rz + rr.uniform(-10, 10), sink=0.0)
+        z += lh
+    return z
+
+
 # ---------------- canyon walls ----------------
 # Nested strata rings around the floor. Each ring's wall stands on the ledge (top face) of the
 # ring below and the top ring runs out to a far plateau, so the surroundings are one continuous
@@ -57,10 +74,12 @@ def erosion(x, y, k):
 
 
 base = rect_points(FX + 0.25, FY + 0.25, BASE_R); N = len(base); NL = 4
+MINE_X = -12.0
 offs = [[0.0] * N for _ in range(NL)]
 for i, (x, y, tag) in enumerate(base):
     for k in range(NL):
-        offs[k][i] = 0.1 * erosion(x, y, 0) if k == 0 else offs[k - 1][i] + 1.65 + 1.1 * erosion(x, y, k) + rnd.uniform(0, .2)
+        # the first ring stands 3 units back: the rock blocks in front of it form the visible wall face
+        offs[k][i] = 3.0 + 0.1 * erosion(x, y, 0) if k == 0 else offs[k - 1][i] + 1.9 + 1.1 * erosion(x, y, k) + rnd.uniform(0, .2)
 for k in range(NL):
     offs[k] = [(offs[k][i - 1] + 2 * offs[k][i] + offs[k][(i + 1) % N]) / 4 for i in range(N)]
     if k:
@@ -120,13 +139,38 @@ def ground_z(x, y):
     return loc.z if hit else 0.0
 
 
+# Cliff dressing: big faceted rock blocks line the face of every strata ring, so the canyon
+# wall reads as solid 3D rock rather than a painted backdrop. Blocks never reach inside the
+# collision wall face; the rings behind them keep the surface continuous.
+for k in range(NL):
+    zb = [0.0] * N if k == 0 else heights[k - 1]
+    i = rnd.randrange(3)
+    while i < N:
+        x, y, tag = base[i]
+        nx, ny = outward(x, y)
+        bx, by = x + nx * offs[k][i], y + ny * offs[k][i]
+        wall_h = heights[k][i] - zb[i]
+        w = rnd.uniform(3.6, 5.6); d = rnd.uniform(2.6, 3.4)
+        if k == 0 and abs(x - MINE_X) < 3.2 and y > FY:   # leave the mine mouth open
+            i += 1
+            continue
+        # block stands in front of the ring face; its inner extent stays >= 0.4 units behind the floor edge
+        cx, cy = bx - nx * d * 0.3, by - ny * d * 0.3
+        ring_mat = CLIFF[k]
+        boulder(f"Cliff{k}_{i}", cx, cy, w, d, wall_h + rnd.uniform(0.3, 0.8), [ring_mat], 9000 + k * 1000 + i,
+                z0=zb[i] - 0.15, subdiv=2 if k < 2 else 1, rough=0.2, cuts=4,
+                top_mat=LEDGE if k < NL - 1 else TOPM, rz=math.degrees(math.atan2(ny, nx)) + 90 + rnd.uniform(-12, 12),
+                sink=0.0)
+        i += rnd.randint(2, 4)
+
 # talus boulders resting at the cliff foot, outside the collision wall face
 for i in range(0, N, 3):
-    bx, by, nx, ny = foot[i]
-    if rnd.random() < 0.55:
-        r = rnd.uniform(0.7, 1.4); d = r + 0.35
-        rock(f"Talus{i}", bx + nx * d, by + ny * d, r * 2, r * 1.7, r * 1.1, rnd.choice([RUST, ORANGE, BASE]), 3000 + i,
-             seg=7, taper=.6, rz=rnd.uniform(0, 180))
+    bx, by, _ = base[i]                     # floor edge, in front of the rock blocks
+    nx, ny = outward(bx, by)
+    if rnd.random() < 0.45:
+        r = rnd.uniform(0.6, 1.1); d = r + 0.15
+        boulder(f"Talus{i}", bx + nx * d, by + ny * d, r * 2, r * 1.7, r * 1.2, ROCK, 3000 + i,
+                subdiv=1, rough=.3, top_mat=ORANGE, rz=rnd.uniform(0, 180))
 
 # plateau decoration: buttes and scrub, kept low on the south side facing the camera
 for i in range(46):
@@ -137,8 +181,8 @@ for i in range(46):
         continue
     z = ground_z(x, y)
     tall = 1.0 if y > 0 else 0.45
-    strata(f"Butte{i}", x, y, rnd.uniform(6, 14), rnd.uniform(5, 11), rnd.uniform(2.5, 7) * tall, [RUST, ORANGE, PALE],
-           4000 + i, z0=z - 0.3, layers=3)
+    stack(f"Butte{i}", x, y, rnd.uniform(6, 14), rnd.uniform(5, 11), rnd.uniform(2.5, 7) * tall, 4000 + i,
+          layers=3, z0=z - 0.3, rz=rnd.uniform(0, 90), top=TOPM)
 for i in range(120):
     x, y = rnd.uniform(-95, 95), rnd.uniform(-85, 85)
     if abs(x) < 44 and abs(y) < 37:
@@ -147,8 +191,8 @@ for i in range(120):
     if rnd.random() < 0.3:
         cyl(f"PlateauCactus{i}", x, y, .35, rnd.uniform(1.6, 2.6), CACT, z0=z, seg=7, r2=.3)
     else:
-        rock(f"PlateauRock{i}", x, y, rnd.uniform(.6, 1.8), rnd.uniform(.5, 1.5), rnd.uniform(.3, .9),
-             rnd.choice([RUST, ORANGE, TOPM]), 5000 + i, z0=z - .1, seg=6)
+        boulder(f"PlateauRock{i}", x, y, rnd.uniform(.8, 2.0), rnd.uniform(.7, 1.7), rnd.uniform(.5, 1.1),
+                ROCK, 5000 + i, z0=z, subdiv=1, rough=.3, top_mat=TOPM, rz=rnd.uniform(0, 180))
 
 
 # ---------------- floor detail ----------------
@@ -171,8 +215,8 @@ for i, (x, y) in enumerate(wash):
     for k in range(3):
         px, py = x + rnd.uniform(-1.6, 1.6), y + rnd.uniform(-1.6, 1.6)
         if clear(px, py, 4.5) and abs(px) < 31:
-            rock(f"Pebble{i}_{k}", px, py, rnd.uniform(.25, .6), rnd.uniform(.25, .5), rnd.uniform(.08, .18), SAND2,
-                 6000 + i * 3 + k, seg=6, taper=.6)
+            boulder(f"Pebble{i}_{k}", px, py, rnd.uniform(.3, .65), rnd.uniform(.3, .55), rnd.uniform(.18, .32), SAND2,
+                    6000 + i * 3 + k, subdiv=1, rough=.25, cuts=2, sink=0.05)
 for i in range(240):
     x, y = rnd.uniform(-31.5, 31.5), rnd.uniform(-25.5, 25.5)
     if clear(x, y, 4.6):
@@ -189,7 +233,8 @@ for i, (x, y) in enumerate(SPAWNS):
     box(f"SpawnEdge{i}", x, y - 3.0, 5.2, .25, .13, PADLINE)
     for cx in (-1, 1):
         for cy in (-1, 1):
-            rock(f"SpawnStone{i}_{cx}{cy}", x + cx * 3.5, y + cy * 3.5, .8, .8, .55, RUST, 700 + i * 4 + cx + cy * 2, seg=6)
+            boulder(f"SpawnStone{i}_{cx}{cy}", x + cx * 3.5, y + cy * 3.5, .85, .85, .6, ROCK, 700 + i * 4 + cx + cy * 2,
+                    subdiv=1, rough=.25, cuts=2)
 for i, (x, y) in enumerate(PICKUPS):
     cyl(f"SupplyPad{i}", x, y, 1.9, .07, SUP, seg=8)
     box(f"SupplyCrossA{i}", x, y, 1.7, .35, .1, WHITE); box(f"SupplyCrossB{i}", x, y, .35, 1.7, .1, WHITE)
@@ -198,35 +243,39 @@ for i, (x, y) in enumerate(PICKUPS):
 # ---------------- cover ----------------
 def mesa_half(s):  # 1. split mesa; the dry wash runs through the slot
     x, y = 3.4 * s, 2.9 * s
-    strata(f"Mesa{s}", x, y, 6.6, 4.6, 4.4, [BASE, RUST, ORANGE, PALE], 10 + s, rz=40, layers=4)
+    stack(f"Mesa{s}", x, y, 6.2, 4.3, 4.4, 10 + s, layers=3, rz=40, top=PALE)
+    for k, (ox, oy, r) in enumerate([(2.9, -1.2, 1.1), (-2.6, 1.6, 0.9)]):
+        boulder(f"MesaRubble{s}_{k}", x + ox * s, y + oy * s, r * 2, r * 1.7, r * 1.3, ROCK, 15 + k + s * 3,
+                subdiv=1, rough=.3, top_mat=ORANGE)
     col(f"Mesa{s}", x, y, 5.6, 3.8, 4.4, rz=40)
 
 
 def hoodoos(s):  # 2. hoodoo clusters
     for k, (ox, oy, h) in enumerate([(0, 0, 4.4), (1.9, -1.0, 3.3), (-1.4, -1.6, 2.6)]):
         x, y = (-13 + ox) * s, (11 + oy) * s
-        strata(f"Hoodoo{s}_{k}", x, y, 1.9, 1.9, h, [RUST, ORANGE, RUST], 20 + k + s * 5, layers=3)
-        rock(f"HoodooCap{s}_{k}", x, y, 2.4, 2.2, .55, PALE, 30 + k + s * 5, z0=h - .1, seg=7, taper=.8)
+        top = stack(f"Hoodoo{s}_{k}", x, y, 1.9, 1.9, h - 0.5, 20 + k + s * 5, layers=3)
+        boulder(f"HoodooCap{s}_{k}", x, y, 2.4, 2.2, .75, PALE, 30 + k + s * 5, z0=top - .1, subdiv=1, rough=.2,
+                flat_top=0.3, cuts=3, sink=0.0)
         col(f"Hoodoo{s}_{k}", x, y, 1.6, 1.6, h)
 
 
 def ledge(s):  # 3. low L-shaped rock ledges
-    pts = [(-11, -12), (-8.6, -12.4), (-6.2, -12.2), (-5.4, -10.2)]
+    pts = [(-11, -12), (-9.4, -12.5), (-7.8, -12.1), (-6.2, -12.4), (-5.3, -11.2), (-5.5, -9.8)]
     for k, (x, y) in enumerate(pts):
-        rock(f"Ledge{s}_{k}", x * s, y * s, 2.7, 2.0, 1.5, ORANGE if k % 2 else RUST, 40 + k + s * 7, seg=7, taper=.75,
-             rz=(k * 37) % 90)
+        boulder(f"Ledge{s}_{k}", x * s, y * s, 2.4, 1.9, 1.5 + 0.25 * (k % 2), ROCK, 40 + k + s * 7, subdiv=2, rough=.22,
+                top_mat=ORANGE, rz=(k * 37) % 90)
     col(f"LedgeA{s}", -8.6 * s, -12.2 * s, 7.0, 1.7, 1.5)
     col(f"LedgeB{s}", -5.4 * s, -10.6 * s, 1.8, 2.6, 1.5)
 
 
 def side_mesa(s):  # 4. small mesas guarding the side supply pads
     x, y = -20 * s, 6.5 * s
-    strata(f"SideMesa{s}", x, y, 4.6, 3.2, 2.6, [RUST, ORANGE, PALE], 50 + s, layers=3, rz=8)
+    stack(f"SideMesa{s}", x, y, 4.4, 3.0, 2.6, 50 + s, layers=2, rz=8, top=PALE)
     col(f"SideMesa{s}", x, y, 4.0, 2.6, 2.6, rz=8)
 
 
 def supply_cover(s):  # 5. boulder and dead tree beside the north/south supply pads
-    rock(f"PadBoulder{s}", -5.5 * s, 19.5 * s, 2.4, 2.0, 1.5, RUST, 60 + s, seg=7, taper=.6)
+    boulder(f"PadBoulder{s}", -5.5 * s, 19.5 * s, 2.3, 1.9, 1.6, ROCK, 60 + s, subdiv=2, rough=.22, top_mat=ORANGE)
     col(f"PadBoulder{s}", -5.5 * s, 19.5 * s, 2.0, 1.6, 1.5)
     x, y = 5.5 * s, 18.5 * s
     cyl(f"DeadTree{s}", x, y, .32, 2.8, DEAD, seg=6, r2=.18)
@@ -249,16 +298,16 @@ def ore_cart(s):  # 6. ore carts (the mine entrance itself is north-wall decorat
 for fn in (mesa_half, hoodoos, ledge, side_mesa, supply_cover, ore_cart):
     pair(fn)
 
-mx, my = -12.0, 28.6
-box("MineHole", mx, my + 0.6, 3.2, 1.0, 3.0, DARK)
+mx, my = MINE_X, FY + 0.25 + 3.0 - 0.3          # on the face of the first strata ring
+box("MineHole", mx, my + 0.35, 3.2, 0.9, 3.0, DARK)
 for side in (-1, 1):
     box(f"MinePost{side}", mx + side * 1.8, my, .45, .45, 3.4, WOOD)
 box("MineBeam", mx, my, 4.3, .55, .5, WOOD, z0=3.3)
 box("MineSign", mx + .9, my - .32, 1.6, .08, .6, WOODD, z0=3.9)
-for k in range(9):
-    box(f"MineSleeper{k}", mx, 27.6 - k * 0.9, 2.2, .3, .06, WOODD)
+for k in range(11):
+    box(f"MineSleeper{k}", mx, my - 0.6 - k * 0.9, 2.2, .3, .06, WOODD)
 for r in (-.55, .55):
-    box(f"MineRail{r}", mx + r, 24.0, .12, 7.4, .12, IRON)
+    box(f"MineRail{r}", mx + r, my - 5.1, .12, 9.6, .12, IRON)
 
 
 def cactus(name, x, y, h, seedc):

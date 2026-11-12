@@ -1,5 +1,13 @@
 # Kontrol sonuçları — 13 Kasım 2026
 
+## 1.7.2 kontrolleri
+
+- Kanyon'daki kayalar, mesalar ve kaya sütunları her yönden kapalı, köşeli 3D kaya modelleriyle yeniden yapıldı (orijinal haritaların tarzında). Kanyon duvarlarının yüzü iri kaya bloklarından oluşuyor; arkadaki kesintisiz katmanlar korunuyor.
+- Blender'da tüm kapalı modellerin yüz yönleri ve FBX'teki üçgen sıralaması kontrol edildi: ters ya da açık yüzlü model yok.
+- Liman'da kutu modellerin kenarları pahlandı (132 model); kenarlara üç katlı konteyner kuleleri, iki katlı liman ofisi, 8 m ışık direkleri, lastik yığınları, çuvallı paletler ve beton derzleri eklendi.
+- Unity'de iki haritanın sekiz kenar/köşe noktası takip kamerasıyla görüntülendi; boşluk veya taşma yok. Tüm başlangıç/güçlendirme yolları bağlı (Kanyon 33, Liman 37 çarpışma kutusu).
+- Windows 64 bit derlemesi başarılı: 0 hata, 185,7 MB. EXE 15 saniyelik açılış kontrolünde çalışır kaldı; Player.log'da hata yok.
+
 ## 1.7.1 kontrolleri
 
 - Kanyon'un kenarlarında görülen koyu boşluklar ve güneydeki çizgili titreme (üst üste binen iki yüzey) giderildi. Çevre artık iç içe dört katmandan oluşan tek parça bir kanyon duvarı ve ona kesintisiz bağlanan bir düzlük; ayrı kutu ve bloklar kullanılmıyor.
