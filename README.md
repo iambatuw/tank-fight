@@ -36,15 +36,15 @@ Hem iki kişilik düellolarda hem bilgisayara karşı maçlarda **Orman, Çöl, 
 
 | Arena | Oynanış |
 | --- | --- |
-| Kanyon | Katmanlı kayalıklar, taş kemerler ve açık yan geçitler |
-| Liman | Renkli yük konteynerleri, kasalar ve vinçlerle çevrili rıhtım |
+| Kanyon | Katmanlı kızıl kayalıklarla çevrili vadi; ortasından geçen kuru dere yatağı, merkezde bir tepe, iki kaya kemeri, kaya sırtları, kırık el arabaları ve kaktüsler |
+| Liman | Denizle çevrili rıhtım; ortadan geçen yol ve liman ofisi, üst üste konteynerler, forkliftler, beton bariyerler, demiryolu, vinçler ve demirli bir kargo gemisi |
 | Kutup İstasyonu | Buz kayalıkları, modüler üs binaları ve radar kuleleri |
 
 ![Kanyon](UI-Preview/arena-canyon.png)
 ![Liman](UI-Preview/arena-harbor.png)
 ![Kutup İstasyonu](UI-Preview/arena-arctic.png)
 
-Yeni haritaların on özgün 3D modeli `Assets/ArenaArt/Prefabs` klasöründedir. Modeller düşük poligonlu ve düz renkli tasarlanmıştır. Küçük süs parçaları malzemeye göre birleştirilmiştir; oyun sırasında yeniden model üretilmez. Her haritada dört güçlendirme noktası ve iki taraf için açık başlangıç alanları bulunur.
+Kanyon ve Liman Blender'da sıfırdan tasarlandı; kaynak dosya `Blender/Arenas.blend`, oyuna aktarılan modeller `Assets/ArenaArt/Blender` klasöründedir. Unity'de **Tank Duel → Build Blender Arenas (Canyon + Harbor)** menüsü modelleri sahnelere yerleştirir, çarpışma kutularını ve gezinme ağını kurar, tüm başlangıç ve güçlendirme noktaları arasındaki yolları doğrular. Kutup İstasyonu'nun özgün 3D modelleri `Assets/ArenaArt/Prefabs` klasöründedir. Modeller düşük poligonlu ve düz renkli tasarlanmıştır. Küçük süs parçaları malzemeye göre birleştirilmiştir; oyun sırasında yeniden model üretilmez. Her haritada dört güçlendirme noktası ve iki taraf için açık başlangıç alanları bulunur.
 
 Oyun içindeki yarı şeffaf göstergeler oyuncu adını, tank modelini, canı ve skoru ayrı alanlarda gösterir. Renk şeritleri garajda seçtiğiniz tank rengiyle eşleşir.
 

@@ -30,7 +30,8 @@ public static class DuelArenaBuilder
         try
         {
             DuelArenaAssetBuilder.Build();
-            for (int theme = 0; theme < 3; theme++) Build(theme);
+            // Canyon (0) and Harbor (1) now come from Blender: Tank Duel > Build Blender Arenas.
+            Build(2);
             EditorBuildSettings.scenes = DuelArenaCatalog.Scenes.Select(s =>
                 new EditorBuildSettingsScene(DuelArenaCatalog.ScenePath(s), true)).ToArray();
             AssetDatabase.SaveAssets();
