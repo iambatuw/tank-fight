@@ -85,9 +85,11 @@ namespace Tanks.Complete
             for (int i = 0; i < renderers.Length; i++)
             {
                 var renderer = renderers[i];
-                for (int j = 0; j < renderer.materials.Length; ++j)
+                // Each access to .materials allocates a new array, so read it once.
+                var materials = renderer.materials;
+                for (int j = 0; j < materials.Length; ++j)
                 {
-                    var mat = renderer.materials[j];
+                    var mat = materials[j];
                     // If the material is the tank color or tank red material...
                     if (mat.name.Contains("TankColor") || mat.name.Contains("TankRed") ||
                         (mat.name.Contains("Tank") && !mat.name.Contains("Grey") && !mat.name.Contains("Window") && !mat.name.Contains("Lights")))

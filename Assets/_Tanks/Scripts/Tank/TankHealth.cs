@@ -98,6 +98,8 @@ namespace Tanks.Complete
 
         public void IncreaseHealth(float amount)
         {
+            if (m_Dead || amount <= 0f) return;
+
             // Check if adding the amount would keep the health within the maximum limit
             if (m_CurrentHealth + amount <= m_StartingHealth)
             {

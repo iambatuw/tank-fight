@@ -486,10 +486,16 @@ namespace Tanks.Complete
             toTarget *= Random.Range(5.0f, 20.0f);
 
             // Finally we compute a path toward that random point, which become our new current path.
-            if (m_CurrentPath == null) m_CurrentPath = new NavMeshPath();
-            if (NavMesh.CalculatePath(transform.position, transform.position + toTarget, NavMesh.AllAreas,
-                    m_CurrentPath))
+            // Both ends must lie on the NavMesh, otherwise CalculatePath fails and the bot stays put.
+            if (!NavMesh.SamplePosition(transform.position, out var origin, 3f, NavMesh.AllAreas) ||
+                !NavMesh.SamplePosition(transform.position + toTarget, out var destination, 6f, NavMesh.AllAreas))
+                return;
+
+            var fleePath = new NavMeshPath();
+            if (NavMesh.CalculatePath(origin.position, destination.position, NavMesh.AllAreas, fleePath) &&
+                fleePath.status == NavMeshPathStatus.PathComplete && fleePath.corners.Length >= 2)
             {
+                m_CurrentPath = fleePath;
                 m_CurrentState = State.Flee;
                 m_CurrentCorner = 1;
 

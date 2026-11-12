@@ -66,6 +66,14 @@ namespace Tanks.Complete
             m_SpecialShellMultiplier = 1.0f;
         }
 
+        private void OnDisable()
+        {
+            // A round can end mid-charge; don't leave the charging sound looping.
+            if (m_IsCharging && m_ShootingAudio != null && m_ShootingAudio.clip == m_ChargingClip)
+                m_ShootingAudio.Stop();
+            m_IsCharging = false;
+        }
+
         private void Awake()
         {
             m_InputUser = GetComponent<TankInputUser>();

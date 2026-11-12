@@ -26,7 +26,8 @@ namespace Tanks.Complete
 
         private void OnTriggerEnter (Collider other)
         {
-            if (m_HasExploded) return;
+            // Pickup and zone triggers must not detonate shells in mid-air.
+            if (m_HasExploded || other.isTrigger) return;
             m_HasExploded = true;
 			// Collect all the colliders in a sphere from the shell's current position to a radius of the explosion radius.
             Collider[] colliders = Physics.OverlapSphere (transform.position, m_ExplosionRadius, m_TankMask);

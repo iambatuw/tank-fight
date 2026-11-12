@@ -19,7 +19,8 @@ public sealed class DuelOpponentMarker : MonoBehaviour
         hud = matchHud;
         rect = GetComponent<RectTransform>();
         rect.sizeDelta = new Vector2(168, 50);
-        plate = GetComponent<Image>() ?? gameObject.AddComponent<Image>();
+        plate = GetComponent<Image>();
+        if (plate == null) plate = gameObject.AddComponent<Image>();
         plate.color = new Color(0.045f, 0.07f, 0.06f, 0.60f);
         plate.sprite = TankDuel.RoundedSprite();
         plate.type = Image.Type.Sliced;

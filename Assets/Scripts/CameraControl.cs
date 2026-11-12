@@ -19,7 +19,9 @@ namespace Tanks.Complete
         private void Awake()
         {
             Instance = this;
-            view = GetComponentInChildren<Camera>() ?? Camera.main;
+            // Unity objects override ==, so '??' can miss a destroyed or missing component.
+            view = GetComponentInChildren<Camera>();
+            if (view == null) view = Camera.main;
         }
 
         private void OnDestroy()

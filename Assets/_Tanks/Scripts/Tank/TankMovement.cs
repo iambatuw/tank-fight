@@ -207,7 +207,14 @@ namespace Tanks.Complete
         {
             // The bot moves its Rigidbody in TankAI.FixedUpdate. Human movement here
             // would overwrite that motion and query an InputUser the bot does not need.
-            if (m_IsComputerControlled) return;
+            // Explosion knockback still applies to bots, so both sides react to hits alike.
+            if (m_IsComputerControlled)
+            {
+                if (m_Rigidbody != null && !m_Rigidbody.isKinematic)
+                    m_Rigidbody.linearVelocity = m_ExplosionForceValue;
+                m_ExplosionForceValue = Vector3.Lerp(m_ExplosionForceValue, Vector3.zero, Time.deltaTime * 3f);
+                return;
+            }
             // If this is using a gamepad or have direct control enabled, this used a different movement method : instead of
             // "up" behind moving forward for the tank, it instead takes the gamepad move direction as the desired forward for the tank
             // and will compute the speed and rotation needed to move the tank toward that direction.

@@ -78,7 +78,12 @@ namespace Tanks.Complete
                 {
                     var mainCam = Camera.main;
                     if (mainCam != null)
-                        m_CameraControl = mainCam.GetComponentInParent<CameraControl>() ?? mainCam.GetComponent<CameraControl>() ?? mainCam.gameObject.AddComponent<CameraControl>();
+                    {
+                        // GetComponentInParent also checks the camera itself; avoid '??' on Unity objects.
+                        m_CameraControl = mainCam.GetComponentInParent<CameraControl>();
+                        if (m_CameraControl == null)
+                            m_CameraControl = mainCam.gameObject.AddComponent<CameraControl>();
+                    }
                 }
             }
         }
@@ -127,7 +132,7 @@ namespace Tanks.Complete
             rt.offsetMax = new Vector2(-44, -24);
 
             m_TitleText = announcerObj.GetComponent<TextMeshProUGUI>();
-            var interfaceFont = Resources.Load<TMP_FontAsset>("UI/Inter SDF");
+            var interfaceFont = Resources.Load<TMP_FontAsset>("UI/UbuntuTR SDF") ?? Resources.Load<TMP_FontAsset>("UI/Inter SDF");
             if (interfaceFont != null) m_TitleText.font = interfaceFont;
             m_TitleText.fontSize = 52;
             m_TitleText.enableAutoSizing = true;
@@ -192,7 +197,7 @@ namespace Tanks.Complete
                 Debug.LogError("Cannot start match: missing camera or round announcement text.");
                 return;
             }
-            var interfaceFont = Resources.Load<TMP_FontAsset>("UI/Inter SDF");
+            var interfaceFont = Resources.Load<TMP_FontAsset>("UI/UbuntuTR SDF") ?? Resources.Load<TMP_FontAsset>("UI/Inter SDF");
             if (interfaceFont != null) m_TitleText.font = interfaceFont;
             m_TitleText.enableAutoSizing = true;
             m_TitleText.fontSizeMin = 31f;

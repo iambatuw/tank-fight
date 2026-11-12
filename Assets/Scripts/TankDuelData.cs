@@ -20,7 +20,9 @@ public static class TankDuelLocalization
         if (font == null) return;
         bool hasTurkishGlyphs = true;
         foreach (char c in "ÇĞİÖŞÜçğıöşü")
-            if (!font.HasCharacter(c)) { hasTurkishGlyphs = false; break; }
+            // tryAddCharacter lets dynamic fonts add missing glyphs instead of being
+            // reported as incomplete and receiving an unnecessary fallback.
+            if (!font.HasCharacter(c, false, true)) { hasTurkishGlyphs = false; break; }
         if (hasTurkishGlyphs) return;
         try
         {
